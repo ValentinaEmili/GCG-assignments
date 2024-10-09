@@ -1,0 +1,65 @@
+image: localhost:5000/gcg_image
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - build
+    - data
+
+stages:
+  - render
+  - latex
+  
+testing:
+  stage: render
+  tags:
+    - gcg_render
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^task|boni\d.*/
+  script:
+    - if [ ! -d "data" ]; then git clone https://gitlab.tuwien.ac.at/e193-02-gcg-course/data-internal.git/ data; else (cd data && git pull); fi
+    - cp -r -f data/framework/* .
+    - ls -A
+    - make release
+    - cd _project/
+    - cp ../data/take_screenshots.sh .
+    - chmod +x take_screenshots.sh
+    - ls -A
+    - ./take_screenshots.sh $CI_COMMIT_BRANCH
+    - ls -A
+    - convert *.ppm -set filename:basename "%[basename]" "%[filename:basename].png"
+    - cp *.png ../evaluation/
+    - cd ../evaluation
+    - cp -r ../data/images/$CI_COMMIT_BRANCH/* .
+    - python3 generate_report.py $CI_COMMIT_BRANCH $CI_COMMIT_TIMESTAMP
+  allow_failure: false
+  artifacts:
+    paths: 
+      - evaluation/*.png
+      - evaluation/*.tex
+      - evaluation/GCG_GL/*.png
+      - evaluation/GCG_VK/*.png
+    expire_in: 1 d
+
+report:
+  variables:
+    GIT_SUBMODULE_STRATEGY: none
+  stage: latex
+  image: localhost:5000/tex_image
+  script:
+    - cd evaluation
+    - pdflatex report.tex
+    - cd ..
+    - cp ./evaluation/report.pdf .
+  tags:
+    - gcg_latex
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^task|boni\d.*/
+  allow_failure: false
+  artifacts:
+    paths: 
+      - report.pdf
+    expire_in: 1 d
