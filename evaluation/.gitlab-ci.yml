@@ -34,6 +34,7 @@ testing:
     - cp *.png ../evaluation/
     - cd ../evaluation
     - cp -r ../data/images/$CI_COMMIT_BRANCH/* .
+    - cp -f ../data/generate_report.py .
     - python3 generate_report.py $CI_COMMIT_BRANCH $CI_COMMIT_TIMESTAMP
   allow_failure: false
   artifacts:
