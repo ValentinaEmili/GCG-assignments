@@ -48,6 +48,7 @@ if(APPLE)
         "-framework CoreGraphics"
         "-framework IOKit"
         "-framework AppKit"
+        "-framework QuartzCore"
     )
 endif()
 
