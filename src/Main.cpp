@@ -88,6 +88,24 @@ void keyCallbackFromGlfw(GLFWwindow* window, int key, int scancode, int action, 
     }
 }
 
+struct UniformBufferObject {
+    alignas(16) glm::vec4 color;
+    alignas(16) glm::mat4 view_projection;
+};
+
+// Subtask 2.6: Orbit Camera
+float zoom = 5.0f; // initial radium
+float yaw = 0.0f;
+float pitch = 0.0f;
+float max_pitch = glm::radians(89.0f);
+float min_pitch = glm::radians(-89.0f);
+float last_x = 0.0f;
+float last_y = 0.0f;
+bool first_mouse = true;
+
+void mouse_callback(GLFWwindow* window, double x_pos, double y_pos);
+void scroll_callback(GLFWwindow* window, double x_offset, double y_offset);
+
 
 /* --------------------------------------------- */
 // Main
@@ -103,8 +121,8 @@ int main(int argc, char** argv) {
     // Subtask 1.1: Load Settings From File
     /* --------------------------------------------- */
     INIReader window_reader("assets/settings/window.ini");
-    int width = window_reader.GetInteger("window", "width", 800);
-    int height = window_reader.GetInteger("window", "height", 800);;
+    int width = static_cast<int>(window_reader.GetInteger("window", "width", 800));
+    int height = static_cast<int>(window_reader.GetInteger("window", "height", 800));
     bool fullscreen = window_reader.GetBoolean("window", "fullscreen", false);
     std::string window_title = window_reader.Get("window", "title", "GCG 2025");
     // Install a callback function, which gets invoked whenever a GLFW error occurred.
@@ -136,6 +154,9 @@ int main(int argc, char** argv) {
     }
 
     glfwSetKeyCallback(window, keyCallbackFromGlfw);
+    // set callbacks for subtask 2.6
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetScrollCallback(window, scroll_callback);
 
     VKL_LOG("Subtask 1.2 done.");
 
@@ -376,19 +397,295 @@ int main(int argc, char** argv) {
         swapchain_config.swapchainImages[i].depthAttachmentImageDetails.imageHandle = VK_NULL_HANDLE;
     }
 
+    // Subtask 2.7: Depth Test
+    uint32_t swapchain_width = extent.width;
+    uint32_t swapchain_height = extent.height;
+    VkImage depth_image = vklCreateDeviceLocalImageWithBackingMemory(
+        vk_physical_device,
+        vk_device,
+        swapchain_width,
+        swapchain_height,
+        VK_FORMAT_D32_SFLOAT,
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        1,
+        0);
+
+    VkClearValue depth_clear_value{};
+    depth_clear_value.depthStencil.depth = 1.0f; // far plane distance in normalized device coordinates
+    depth_clear_value.depthStencil.stencil = 0;
+
+    for (uint32_t i = 0; i < swapchain_images.size(); i++) {
+        swapchain_config.swapchainImages[i].depthAttachmentImageDetails.imageHandle = depth_image;
+        swapchain_config.swapchainImages[i].depthAttachmentImageDetails.imageFormat = VK_FORMAT_D32_SFLOAT;
+        swapchain_config.swapchainImages[i].depthAttachmentImageDetails.imageUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        swapchain_config.swapchainImages[i].depthAttachmentImageDetails.clearValue = depth_clear_value;
+    }
+    //vklInitFramework(vk_instance, vk_surface, vk_physical_device, vk_device, vk_queue, swapchain_config);
+    // end subtask 2.7
+
     // Init the framework:
     if (!gcgInitFramework(vk_instance, vk_surface, vk_physical_device, vk_device, vk_queue, swapchain_config)) {
         VKL_EXIT_WITH_ERROR("Failed to init framework");
     }
     VKL_LOG("Subtask 1.9 done.");
 
+    // Subtask 2.1: Create a Custom Graphics Pipeline
+    VklGraphicsPipelineConfig graphics_pipe_config{};
+    graphics_pipe_config.vertexShaderPath = "shader.vert";
+    graphics_pipe_config.fragmentShaderPath = "shader.frag";
+
+    VkVertexInputBindingDescription vertexInputBindings{};
+    vertexInputBindings.binding = 0;
+    vertexInputBindings.stride = 3 * sizeof(float);
+    vertexInputBindings.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    graphics_pipe_config.vertexInputBuffers.push_back(vertexInputBindings);
+
+    VkVertexInputAttributeDescription vertex_input_attribute_description{};
+    vertex_input_attribute_description.location = 0;
+    vertex_input_attribute_description.binding = 0;
+    vertex_input_attribute_description.format = VK_FORMAT_R32G32B32_SFLOAT;
+    vertex_input_attribute_description.offset = 0;
+    graphics_pipe_config.inputAttributeDescriptions.push_back(vertex_input_attribute_description);
+
+    graphics_pipe_config.polygonDrawMode = VK_POLYGON_MODE_FILL;
+    graphics_pipe_config.triangleCullingMode = VK_CULL_MODE_NONE;
+
+    std::string vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/shader.vert");
+    std::string fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/shader.frag");
+
+    graphics_pipe_config.vertexShaderPath = vertex_shader_path.c_str();
+    graphics_pipe_config.fragmentShaderPath = fragment_shader_path.c_str();
+
+    // Subtask 2.2: Create a Uniform Buffer
+    VkDescriptorSetLayoutBinding descriptor_set_layout_binding{};
+    descriptor_set_layout_binding.binding = 0;
+    descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptor_set_layout_binding.descriptorCount = 1;
+    descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    descriptor_set_layout_binding.pImmutableSamplers = nullptr;
+    graphics_pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding);
+
+    VkPipeline pipeline = vklCreateGraphicsPipeline(graphics_pipe_config);
+
+    UniformBufferObject ubo{};
+    ubo.color[0] = 1.0f;
+    ubo.color[1] = 0.5f;
+    ubo.color[2] = 0.0f;
+    ubo.color[3] = 1.0f;
+
+    VkDeviceSize buffer_size = sizeof(ubo);
+    VkBuffer buffer = vklCreateHostCoherentBufferWithBackingMemory(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+
+    vklCopyDataIntoHostCoherentBuffer(buffer, &ubo, buffer_size);
+    vklEnablePipelineHotReloading(window, GLFW_KEY_F5);
+
+    // Subtask 2.3: Allocate and Write Descriptors
+    VkDescriptorPool descriptor_pool;
+
+    VkDescriptorPoolSize pool_size;
+    pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    pool_size.descriptorCount = 8 * 16;
+
+    VkDescriptorPoolCreateInfo descriptor_pool_create_info{};
+    descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptor_pool_create_info.pNext = nullptr;
+    descriptor_pool_create_info.flags = 0;
+    descriptor_pool_create_info.maxSets = 8;
+    descriptor_pool_create_info.poolSizeCount = 1;
+    descriptor_pool_create_info.pPoolSizes = &pool_size;
+
+    VkResult des_pool_result = vkCreateDescriptorPool(vk_device, &descriptor_pool_create_info, nullptr, &descriptor_pool);
+    VKL_CHECK_VULKAN_ERROR(des_pool_result);
+
+    VkDescriptorSetLayout descriptor_set_layout;
+    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{};
+    descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptor_set_layout_create_info.pNext = nullptr;
+    descriptor_set_layout_create_info.flags = 0;
+    descriptor_set_layout_create_info.bindingCount = 1;
+    descriptor_set_layout_create_info.pBindings = &descriptor_set_layout_binding;
+
+    VkResult des_set_layout_result = vkCreateDescriptorSetLayout(vk_device, &descriptor_set_layout_create_info, nullptr, &descriptor_set_layout);
+    VKL_CHECK_VULKAN_ERROR(des_set_layout_result);
+
+    VkDescriptorSet descriptor_set;
+    VkDescriptorSetAllocateInfo descriptor_set_allocate_info{};
+    descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptor_set_allocate_info.pNext = nullptr;
+    descriptor_set_allocate_info.descriptorPool = descriptor_pool;
+    descriptor_set_allocate_info.descriptorSetCount = 1;
+    descriptor_set_allocate_info.pSetLayouts = &descriptor_set_layout;
+
+    VkResult allocate_des_result = vkAllocateDescriptorSets(vk_device, &descriptor_set_allocate_info, &descriptor_set);
+    VKL_CHECK_VULKAN_ERROR(allocate_des_result);
+
+    VkDescriptorBufferInfo descriptor_buffer_info{};
+    descriptor_buffer_info.buffer = buffer;
+    descriptor_buffer_info.offset = 0;
+    descriptor_buffer_info.range = buffer_size;
+
+    VkWriteDescriptorSet write_descriptor_set{};
+    write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set.pNext = nullptr;
+    write_descriptor_set.dstSet = descriptor_set;
+    write_descriptor_set.dstBinding = 0;
+    write_descriptor_set.dstArrayElement = 0;
+    write_descriptor_set.descriptorCount = 1;
+    write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_descriptor_set.pImageInfo = nullptr;
+    write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
+    write_descriptor_set.pTexelBufferView = nullptr;
+
+    vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set, 0, nullptr);
+
+    // Subtask 2.4: Viewing and Projection
+    INIReader camera_reader("assets/settings/camera_front.ini");
+    float fov = glm::radians(static_cast<float>(camera_reader.GetReal("camera", "fov", 60.0f)));
+    float near = static_cast<float>(camera_reader.GetReal("camera", "near", 0.1f));
+    float far = static_cast<float>(camera_reader.GetReal("camera", "far", 100.0f));
+    float aspect_ratio = static_cast<float>(width) / static_cast<float>(height);
+
+    yaw = glm::radians(static_cast<float>(camera_reader.GetReal("camera", "yaw", 0.0f)));
+    pitch = glm::radians(static_cast<float>(camera_reader.GetReal("camera", "pitch", 0.0f)));
+    zoom = 5.0f;
+
+    glm::mat4 projection = gcgCreatePerspectiveProjectionMatrix(fov, aspect_ratio, near, far);
+
+    glm::mat4 rotation_pitch = glm::rotate(glm::mat4(1.0f), pitch, glm::vec3(1.0f, 0.0f, 0.0f));
+    glm::mat4 rotation_yaw = glm::rotate(glm::mat4(1.0f), yaw, glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 rotation = rotation_yaw * rotation_pitch;
+
+    glm::mat4 translation = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, zoom));
+    glm::mat4 camera_to_world = rotation * translation;
+    // view-projection matrix
+    glm::mat4 view = glm::inverse(camera_to_world);
+    glm::mat4 view_projection = projection * view;
+
+    // update the UBOs
+    ubo.view_projection = view_projection;
+    vklCopyDataIntoHostCoherentBuffer(buffer, &ubo, buffer_size);
+    // Subtask 2.5: Multiple Teapots
+
+    // teapot 1
+    UniformBufferObject teapot1_ubo{};
+    teapot1_ubo.color = glm::vec4(0.49f, 0.06f, 0.22f, 1.0f);
+
+    glm::mat4 model_teapot1 = glm::translate(glm::mat4(1.0f), glm::vec3(-1.0f, -1.0f, 0.0f));
+    model_teapot1 = glm::rotate(model_teapot1, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // rotation, then translation
+    teapot1_ubo.view_projection = view_projection * model_teapot1; // initialization
+
+    VkDeviceSize buffer_size1 = sizeof(teapot1_ubo);
+    VkBuffer buffer1 = vklCreateHostCoherentBufferWithBackingMemory(buffer_size1, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(buffer1, &teapot1_ubo, buffer_size1);
+
+    VkDescriptorSet descriptor_set1;
+    VkDescriptorSetAllocateInfo descriptor_set_allocate_info1{};
+    descriptor_set_allocate_info1.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptor_set_allocate_info1.pNext = nullptr;
+    descriptor_set_allocate_info1.descriptorPool = descriptor_pool;
+    descriptor_set_allocate_info1.descriptorSetCount = 1;
+    descriptor_set_allocate_info1.pSetLayouts = &descriptor_set_layout;
+
+    VkResult allocate_des_result1 = vkAllocateDescriptorSets(vk_device, &descriptor_set_allocate_info1, &descriptor_set1);
+    VKL_CHECK_VULKAN_ERROR(allocate_des_result1);
+
+    VkDescriptorBufferInfo descriptor_buffer_info1{};
+    descriptor_buffer_info1.buffer = buffer1;
+    descriptor_buffer_info1.offset = 0;
+    descriptor_buffer_info1.range = buffer_size1;
+
+    VkWriteDescriptorSet write_descriptor_set1{};
+    write_descriptor_set1.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set1.pNext = nullptr;
+    write_descriptor_set1.dstSet = descriptor_set1;
+    write_descriptor_set1.dstBinding = 0;
+    write_descriptor_set1.dstArrayElement = 0;
+    write_descriptor_set1.descriptorCount = 1;
+    write_descriptor_set1.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_descriptor_set1.pImageInfo = nullptr;
+    write_descriptor_set1.pBufferInfo = &descriptor_buffer_info1;
+    write_descriptor_set1.pTexelBufferView = nullptr;
+
+    vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set1, 0, nullptr);
+
+    // teapot 2
+    UniformBufferObject teapot2_ubo{};
+    teapot2_ubo.color = glm::vec4(0.0f, 0.13f, 0.31f, 1.0f);
+
+    glm::mat4 model_teapot2 = glm::translate(glm::mat4(1.0f), glm::vec3(1.5f, 1.0f, 0.0f));
+    model_teapot2 = glm::scale(model_teapot2, glm::vec3(1.0f, 2.0f, 1.0f)); // scal
+    teapot2_ubo.view_projection = view_projection * model_teapot2; // initialization
+    VkDeviceSize buffer_size2 = sizeof(teapot2_ubo);
+    VkBuffer buffer2 = vklCreateHostCoherentBufferWithBackingMemory(buffer_size2, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(buffer2, &teapot2_ubo, buffer_size2);
+
+    VkDescriptorSet descriptor_set2;
+    VkDescriptorSetAllocateInfo descriptor_set_allocate_info2{};
+    descriptor_set_allocate_info2.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptor_set_allocate_info2.pNext = nullptr;
+    descriptor_set_allocate_info2.descriptorPool = descriptor_pool;
+    descriptor_set_allocate_info2.descriptorSetCount = 1;
+    descriptor_set_allocate_info2.pSetLayouts = &descriptor_set_layout;
+    VkResult allocate_des_result2 = vkAllocateDescriptorSets(vk_device, &descriptor_set_allocate_info2, &descriptor_set2);
+    VKL_CHECK_VULKAN_ERROR(allocate_des_result2);
+
+    VkDescriptorBufferInfo descriptor_buffer_info2{};
+    descriptor_buffer_info2.buffer = buffer2;
+    descriptor_buffer_info2.offset = 0;
+    descriptor_buffer_info2.range = buffer_size2;
+
+    VkWriteDescriptorSet write_descriptor_set2{};
+    write_descriptor_set2.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set2.pNext = nullptr;
+    write_descriptor_set2.dstSet = descriptor_set2;
+    write_descriptor_set2.dstBinding = 0;
+    write_descriptor_set2.dstArrayElement = 0;
+    write_descriptor_set2.descriptorCount = 1;
+    write_descriptor_set2.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_descriptor_set2.pImageInfo = nullptr;
+    write_descriptor_set2.pBufferInfo = &descriptor_buffer_info2;
+    write_descriptor_set2.pTexelBufferView = nullptr;
+
+    vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set2, 0, nullptr);
+
     /* --------------------------------------------- */
     // Subtask 1.10: Set-up the Render Loop
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        // Subtask 2.6: Orbit Camera
+        glm::vec3 camera_pos;
+        camera_pos.x = zoom * cos(pitch) * sin(yaw);
+        camera_pos.y = zoom * sin(pitch);
+        camera_pos.z = zoom * cos(pitch) * cos(yaw);
+
+        glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
+        glm::vec3 world_up = glm::vec3(0.0f, 1.0f, 0.0f);
+        glm::vec3 direction = glm::normalize(target -camera_pos);
+        glm::vec3 right = glm::normalize(glm::cross(world_up, direction));
+        glm::vec3 camera_up = glm::cross(direction, right);
+
+        view = glm::mat4(1.0f);
+        view[0] = glm::vec4(right, 0.0f);
+        view[1] = glm::vec4(camera_up, 0.0f);
+        view[2] = glm::vec4(-direction, 0.0f);
+        view[3] = glm::vec4(camera_pos, 1.0f);
+        view = glm::inverse(view);
+        view_projection = projection * view;
+
+        ubo.view_projection = view_projection;
+        vklCopyDataIntoHostCoherentBuffer(buffer, &ubo, buffer_size);
+
+        teapot1_ubo.view_projection = view_projection * model_teapot1;
+        vklCopyDataIntoHostCoherentBuffer(buffer1, &teapot1_ubo, buffer_size1);
+
+        teapot2_ubo.view_projection = view_projection * model_teapot2;
+        vklCopyDataIntoHostCoherentBuffer(buffer2, &teapot2_ubo, buffer_size2);
+
         vklWaitForNextSwapchainImage();
         vklStartRecordingCommands();
-        gcgDrawTeapot();
+        //gcgDrawTeapot(pipeline, descriptor_set);
+        gcgDrawTeapot(pipeline, descriptor_set1);
+        gcgDrawTeapot(pipeline, descriptor_set2);
         vklEndRecordingCommands();
         vklPresentCurrentSwapchainImage();
 
@@ -412,6 +709,13 @@ int main(int argc, char** argv) {
     /* --------------------------------------------- */
     // Subtask 1.12: Cleanup
     /* --------------------------------------------- */
+    vklDestroyGraphicsPipeline(pipeline);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(buffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(buffer1);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(buffer2);
+    vkDestroyDescriptorSetLayout(vk_device, descriptor_set_layout, nullptr);
+    vkDestroyDescriptorPool(vk_device, descriptor_pool, nullptr);
+    vklDestroyDeviceLocalImageAndItsBackingMemory(depth_image);
     gcgDestroyFramework();
     vkDestroySwapchainKHR(vk_device, vk_swapchain, nullptr);
     vkDestroyDevice(vk_device, nullptr);
@@ -520,4 +824,34 @@ VkSurfaceTransformFlagBitsKHR getSurfaceTransform(VkPhysicalDevice physical_devi
     return getPhysicalDeviceSurfaceCapabilities(physical_device, surface).currentTransform;
 }
 
+// Subtask 2.6: Orbit Camera
+void mouse_callback(GLFWwindow* window, double x_pos, double y_pos) {
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) != GLFW_PRESS) {
+        return;
+    }
+    if (first_mouse) {
+        last_x = x_pos;
+        last_y = y_pos;
+        first_mouse = false;
+    }
+    float x_offset = x_pos - last_x;
+    float y_offset = last_y - y_pos;
+    last_x = x_pos;
+    last_y = y_pos;
 
+    float sensitivity = 0.3f;
+    x_offset *= sensitivity;
+    y_offset *= sensitivity;
+
+    yaw += glm::radians(x_offset);
+    pitch += glm::radians(y_offset);
+
+    if (pitch > max_pitch) pitch = max_pitch;
+    if (pitch < min_pitch) pitch = min_pitch;
+}
+
+void scroll_callback(GLFWwindow* window, double x_offset, double y_offset) {
+    zoom -= static_cast<float>(y_offset);
+    if (zoom < 1.0f) zoom = 1.0f;
+    if (zoom > 45.0f) zoom = 45.0f;
+}
