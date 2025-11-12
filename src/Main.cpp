@@ -103,6 +103,10 @@ float last_x = 0.0f;
 float last_y = 0.0f;
 bool first_mouse = true;
 
+glm::vec3 camera_pos;
+glm::vec3 target(0.0f, 0.0f, 0.0f);
+glm::vec3 world_up = glm::vec3(0.0f, 1.0f, 0.0f);
+
 void mouse_callback(GLFWwindow* window, double x_pos, double y_pos);
 void scroll_callback(GLFWwindow* window, double x_offset, double y_offset);
 
@@ -653,14 +657,11 @@ int main(int argc, char** argv) {
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         // Subtask 2.6: Orbit Camera
-        glm::vec3 camera_pos;
         camera_pos.x = zoom * cos(pitch) * sin(yaw);
         camera_pos.y = zoom * sin(pitch);
         camera_pos.z = zoom * cos(pitch) * cos(yaw);
 
-        glm::vec3 target = glm::vec3(0.0f, 0.0f, 0.0f);
-        glm::vec3 world_up = glm::vec3(0.0f, 1.0f, 0.0f);
-        glm::vec3 direction = glm::normalize(target -camera_pos);
+        glm::vec3 direction = glm::normalize(target - camera_pos);
         glm::vec3 right = glm::normalize(glm::cross(world_up, direction));
         glm::vec3 camera_up = glm::cross(direction, right);
 
@@ -826,9 +827,7 @@ VkSurfaceTransformFlagBitsKHR getSurfaceTransform(VkPhysicalDevice physical_devi
 
 // Subtask 2.6: Orbit Camera
 void mouse_callback(GLFWwindow* window, double x_pos, double y_pos) {
-    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) != GLFW_PRESS) {
-        return;
-    }
+
     if (first_mouse) {
         last_x = x_pos;
         last_y = y_pos;
@@ -843,11 +842,27 @@ void mouse_callback(GLFWwindow* window, double x_pos, double y_pos) {
     x_offset *= sensitivity;
     y_offset *= sensitivity;
 
-    yaw += glm::radians(x_offset);
-    pitch += glm::radians(y_offset);
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+        yaw += glm::radians(x_offset);
+        pitch += glm::radians(y_offset);
 
-    if (pitch > max_pitch) pitch = max_pitch;
-    if (pitch < min_pitch) pitch = min_pitch;
+        if (pitch > max_pitch) pitch = max_pitch;
+        if (pitch < min_pitch) pitch = min_pitch;
+    }
+
+    // Subtask 2.8: Strafe
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
+        float strafe = 0.1f;
+        glm::vec3 direction = glm::normalize(target - camera_pos);
+        glm::vec3 right = glm::normalize(glm::cross(world_up, direction));
+        glm::vec3 camera_up = glm::cross(direction, right);
+        target += (-right * x_offset * strafe) + (camera_up * y_offset * strafe);
+    }
+
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) != GLFW_PRESS &&
+        glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) != GLFW_PRESS) {
+        first_mouse = true;
+        }
 }
 
 void scroll_callback(GLFWwindow* window, double x_offset, double y_offset) {
