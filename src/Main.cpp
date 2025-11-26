@@ -80,11 +80,21 @@ VkSurfaceTransformFlagBitsKHR getSurfaceTransform(VkPhysicalDevice physical_devi
  */
 void errorCallbackFromGlfw(int error, const char* description) { std::cout << "GLFW error " << error << ": " << description << std::endl; }
 
+bool is_wireframe = false;
+int cull_mode_idx = 0; // 0: NONE; 1: BACK
+
 void keyCallbackFromGlfw(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     // When ESC is pressed, mark window to close
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+    if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
+        is_wireframe = !is_wireframe;
+    }
+
+    if (key == GLFW_KEY_F2 && action == GLFW_PRESS) {
+        cull_mode_idx = (cull_mode_idx + 1) % 2;
     }
 }
 
@@ -111,6 +121,115 @@ void mouse_callback(GLFWwindow* window, double x_pos, double y_pos);
 void scroll_callback(GLFWwindow* window, double x_offset, double y_offset);
 
 
+// Subtask 3.8: Test Scene
+float cube_width = 2.0f;
+float cube_height = 1.3f;
+float cube_depth = 1.3f;
+
+struct cubeVertex {
+    glm::vec3 position;
+    glm::vec3 color;
+};
+
+std::vector<cubeVertex> cubeVertices_temp = {
+    // front
+    {{-cube_width / 2, -cube_height / 2, cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // left-bottom
+    {{cube_width / 2, -cube_height / 2, cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // right-bottom
+    {{cube_width / 2, cube_height / 2, cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // right-top
+    {{-cube_width / 2, cube_height / 2, cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // left-top
+
+    // back
+    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // left-bottom
+    {{cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // right-bottom
+    {{cube_width / 2, cube_height / 2, -cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // right-top
+    {{-cube_width / 2, cube_height / 2, -cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // left-top
+};
+
+// Subtask 3.5: Cube Geometry
+
+//float cube_width = 1.0f;
+//float cube_height = 1.0f;
+//float cube_depth = 1.0f;
+
+std::vector<glm::vec3> cube_vertices_temp = {
+    // front
+    {-cube_width / 2, -cube_height / 2, cube_depth / 2}, // left-bottom
+    {cube_width / 2, -cube_height / 2, cube_depth / 2}, // right-bottom
+    {cube_width / 2, cube_height / 2, cube_depth / 2}, // right-top
+    {-cube_width / 2, cube_height / 2, cube_depth / 2}, // left-top
+
+    // back
+    {-cube_width / 2, -cube_height / 2, -cube_depth / 2}, // left-bottom
+    {cube_width / 2, -cube_height / 2, -cube_depth / 2}, // right-bottom
+    {cube_width / 2, cube_height / 2, -cube_depth / 2}, // right-top
+    {-cube_width / 2, cube_height / 2, -cube_depth / 2}, // left-top
+};
+
+std::vector<uint32_t> cube_indices = {
+    // front
+    0, 1, 2, 0, 2, 3,
+    // back
+    4, 5, 6, 4, 6, 7,
+    // left
+    0, 4, 7, 0, 7, 3,
+    // right
+    1, 5, 6, 1, 6, 2,
+    // top
+    3, 2, 6, 3, 6, 7,
+    // bottom
+    0, 1, 5, 0, 5, 4
+};
+
+// Subtask 3.6 - 3.7: Cornell Box
+struct CornellVertex {
+    glm::vec3 position;
+    glm::vec3 color;
+};
+
+float cornell_width = 3.0f;
+float cornell_height = 3.0f;
+float cornell_depth = 3.0f;
+
+std::vector<CornellVertex> cornell_vertices_temp = {
+    // back
+    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.76, 0.74f, 0.68f)},
+    {{-cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.76, 0.74f, 0.68f)},
+    {{cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.76, 0.74f, 0.68f)},
+    {{cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.76, 0.74f, 0.68f)},
+    // left
+    {{-cornell_width / 2, -cornell_height / 2, cornell_depth / 2}, glm::vec3(0.49f, 0.06f, 0.22f)},
+    {{-cornell_width / 2, cornell_height / 2, cornell_depth / 2}, glm::vec3(0.49f, 0.06f, 0.22f)},
+    {{-cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.49f, 0.06f, 0.22f)},
+    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.49f, 0.06f, 0.22f)},
+    // right
+    {{cornell_width / 2, -cornell_height / 2, cornell_depth / 2}, glm::vec3(0.0f, 0.13f, 0.31f)},
+    {{cornell_width / 2, cornell_height / 2, cornell_depth / 2}, glm::vec3(0.0f, 0.13f, 0.31f)},
+    {{cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.0f, 0.13f, 0.31f)},
+    {{cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.0f, 0.13f, 0.31f)},
+    // top
+    {{-cornell_width / 2, cornell_height / 2, cornell_depth / 2}, glm::vec3(0.96f, 0.93f, 0.85f)},
+    {{-cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.96f, 0.93f, 0.85f)},
+    {{cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.96f, 0.93f, 0.85f)},
+    {{cornell_width / 2, cornell_height / 2, cornell_depth / 2}, glm::vec3(0.96f, 0.93f, 0.85f)},
+    // bottom
+    {{-cornell_width / 2, -cornell_height / 2, cornell_depth / 2}, glm::vec3(0.64f, 0.64f, 0.64f)},
+    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.64f, 0.64f, 0.64f)},
+    {{cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.64f, 0.64f, 0.64f)},
+    {{cornell_width / 2, -cornell_height / 2, cornell_depth / 2}, glm::vec3(0.64f, 0.64f, 0.64f)},
+};
+
+std::vector<uint32_t> cornell_indices = {
+    //back
+    0, 1, 2, 0, 2, 3,
+    // left
+    4, 5, 6, 4, 6, 7,
+    // right
+    8, 9, 10, 8, 10, 11,
+    // top
+    12, 13, 14, 12, 14, 15,
+    // bottom
+    16, 17, 18, 16, 18, 19
+};
 /* --------------------------------------------- */
 // Main
 /* --------------------------------------------- */
@@ -131,6 +250,16 @@ int main(int argc, char** argv) {
     std::string window_title = window_reader.Get("window", "title", "GCG 2025");
     // Install a callback function, which gets invoked whenever a GLFW error occurred.
     glfwSetErrorCallback(errorCallbackFromGlfw);
+
+    // Subtask 3.3: Interaction
+    std::string init_renderer_filepath = "assets/settings/renderer_standard.ini";
+    if (cmdline_args.init_renderer) {
+        init_renderer_filepath = cmdline_args.init_renderer_filepath;
+    }
+    INIReader renderer_reader(init_renderer_filepath);
+    bool as_wireframe = renderer_reader.GetBoolean("renderer", "wireframe", false);
+    bool with_backface_culling = renderer_reader.GetBoolean("renderer", "backface_culling", false);
+
     /* --------------------------------------------- */
     // Subtask 1.2: Create a Window with GLFW
     /* --------------------------------------------- */
@@ -265,6 +394,13 @@ int main(int argc, char** argv) {
     }
     VKL_LOG("Subtask 1.5 done.");
 
+    // Subtask 3.1: Wireframe Mode
+    VkPhysicalDeviceFeatures device_features = {};
+    vkGetPhysicalDeviceFeatures(vk_physical_device, &device_features);
+    if (device_features.fillModeNonSolid == VK_FALSE) {
+        VKL_EXIT_WITH_ERROR("Device does not support fillModeNonSolidity.");
+    }
+
     /* --------------------------------------------- */
     // Subtask 1.6: Select a Queue Family
     /* --------------------------------------------- */
@@ -311,6 +447,7 @@ int main(int argc, char** argv) {
 
     device_create_info.enabledExtensionCount = static_cast<uint32_t>(device_extensions.size());
     device_create_info.ppEnabledExtensionNames = device_extensions.data();
+    device_create_info.pEnabledFeatures = &device_features; // enable physical device features, subtask 3.1: Wireframe Mode
 
     result = vkCreateDevice(vk_physical_device, &device_create_info, nullptr, &vk_device);
     VKL_CHECK_VULKAN_RESULT(result);
@@ -470,6 +607,16 @@ int main(int argc, char** argv) {
     graphics_pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding);
 
     VkPipeline pipeline = vklCreateGraphicsPipeline(graphics_pipe_config);
+    // Subtask 3.3: Interaction
+    VkPipeline pipelines[4];
+    for (uint32_t wire = 0; wire < 2; wire++) {
+        for (uint32_t cull = 0; cull < 2; cull++) {
+            VklGraphicsPipelineConfig pipe_config = graphics_pipe_config;
+            pipe_config.polygonDrawMode = wire ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
+            pipe_config.triangleCullingMode = (cull == 0) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+            pipelines[wire * 2 + cull] = vklCreateGraphicsPipeline(pipe_config);
+        }
+    }
 
     UniformBufferObject ubo{};
     ubo.color[0] = 1.0f;
@@ -652,6 +799,163 @@ int main(int argc, char** argv) {
 
     vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set2, 0, nullptr);
 
+    // Subtask 3.5: Cube Geometry (cube map)
+    std::vector<float> cube_vertices;
+    for (const auto& vertex: cube_vertices_temp) {
+        cube_vertices.push_back(vertex.x);
+        cube_vertices.push_back(vertex.y);
+        cube_vertices.push_back(vertex.z);
+    }
+    VkDeviceSize cube_vertex_buffer_size = sizeof(float) * cube_vertices.size();
+    VkBuffer cube_vertex_buffer = vklCreateHostCoherentBufferWithBackingMemory(cube_vertex_buffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(cube_vertex_buffer, cube_vertices.data(), cube_vertex_buffer_size);
+
+    VkDeviceSize cube_index_buffer_size = sizeof(uint32_t) * cube_indices.size();
+    VkBuffer cube_index_buffer = vklCreateHostCoherentBufferWithBackingMemory(cube_index_buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(cube_index_buffer, cube_indices.data(), cube_index_buffer_size);
+
+    // Subtask 3.6 - 3.7: Cornell Box
+    std::vector<CornellVertex> cornell_vertices = cornell_vertices_temp;
+    VkDeviceSize cornell_vertex_buffer_size = sizeof(CornellVertex) * cornell_vertices.size();
+    VkBuffer cornell_vertex_buffer = vklCreateHostCoherentBufferWithBackingMemory(cornell_vertex_buffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(cornell_vertex_buffer, cornell_vertices.data(), cornell_vertex_buffer_size);
+
+    VkDeviceSize cornell_index_buffer_size = sizeof(uint32_t) * cornell_indices.size();
+    VkBuffer cornell_index_buffer = vklCreateHostCoherentBufferWithBackingMemory(cornell_index_buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(cornell_index_buffer, cornell_indices.data(), cornell_index_buffer_size);
+
+    VklGraphicsPipelineConfig cornell_pipe_config = graphics_pipe_config;
+    VkVertexInputBindingDescription cornell_bindings = {};
+    cornell_bindings.binding = 0;
+    cornell_bindings.stride = sizeof(CornellVertex);
+    cornell_bindings.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    // clear any existing binding/attribute descriptions copied from graphics_pipe_config
+    cornell_pipe_config.vertexInputBuffers.clear();
+    cornell_pipe_config.inputAttributeDescriptions.clear();
+
+    cornell_pipe_config.vertexInputBuffers.push_back(cornell_bindings);
+
+    vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.vert");
+    fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.frag");
+    cornell_pipe_config.vertexShaderPath = vertex_shader_path.c_str();
+    cornell_pipe_config.fragmentShaderPath = fragment_shader_path.c_str();
+
+    // attribute: position
+    VkVertexInputAttributeDescription cornell_position = {};
+    cornell_position.location = 0;
+    cornell_position.binding = 0;
+    cornell_position.format = VK_FORMAT_R32G32B32_SFLOAT;
+    cornell_position.offset = offsetof(CornellVertex, position);
+    cornell_pipe_config.inputAttributeDescriptions.push_back(cornell_position);
+
+    // attribute: color
+    VkVertexInputAttributeDescription cornell_color = {};
+    cornell_color.location = 1;
+    cornell_color.binding = 0;
+    cornell_color.format = VK_FORMAT_R32G32B32_SFLOAT;
+    cornell_color.offset = offsetof(CornellVertex, color);
+    cornell_pipe_config.inputAttributeDescriptions.push_back(cornell_color);
+
+    VkPipeline cornell_pipelines[4];
+    for (uint32_t wire = 0; wire < 2; wire++) {
+        for (uint32_t cull = 0; cull < 2; cull++) {
+            cornell_pipe_config.polygonDrawMode = wire ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
+            cornell_pipe_config.triangleCullingMode = (cull == 0) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+            cornell_pipelines[wire * 2 + cull] = vklCreateGraphicsPipeline(cornell_pipe_config);
+        }
+    }
+
+    // Subtask 3.8: Test Scene
+    std::vector<cubeVertex> cubeVertices = cubeVertices_temp;
+    VkDeviceSize cubeVertexBuffer_size = sizeof(cubeVertex) * cubeVertices.size();
+    VkBuffer cubeVertex_buffer = vklCreateHostCoherentBufferWithBackingMemory(cubeVertexBuffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(cubeVertex_buffer, cubeVertices.data(), cubeVertexBuffer_size);
+
+    VkDeviceSize cubeIndexBuffer_size = sizeof(uint32_t) * cube_indices.size();
+    VkBuffer cubeIndexBuffer = vklCreateHostCoherentBufferWithBackingMemory(cubeIndexBuffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(cubeIndexBuffer, cube_indices.data(), cubeIndexBuffer_size);
+
+    VklGraphicsPipelineConfig cube_pipe_config = graphics_pipe_config;
+    VkVertexInputBindingDescription cube_bindings = {};
+    cube_bindings.binding = 0;
+    cube_bindings.stride = sizeof(cubeVertex);
+    cube_bindings.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    cube_pipe_config.vertexInputBuffers.clear();
+    cube_pipe_config.inputAttributeDescriptions.clear();
+
+    cube_pipe_config.vertexInputBuffers.push_back(cube_bindings);
+
+    vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.vert");
+    fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.frag");
+    cube_pipe_config.vertexShaderPath = vertex_shader_path.c_str();
+    cube_pipe_config.fragmentShaderPath = fragment_shader_path.c_str();
+
+    // attribute: position
+    VkVertexInputAttributeDescription cube_position = {};
+    cube_position.location = 0;
+    cube_position.binding = 0;
+    cube_position.format = VK_FORMAT_R32G32B32_SFLOAT;
+    cube_position.offset = offsetof(cubeVertex, position);
+    cube_pipe_config.inputAttributeDescriptions.push_back(cube_position);
+
+    // attribute: color
+    VkVertexInputAttributeDescription cube_color = {};
+    cube_color.location = 1;
+    cube_color.binding = 0;
+    cube_color.format = VK_FORMAT_R32G32B32_SFLOAT;
+    cube_color.offset = offsetof(cubeVertex, color);
+    cube_pipe_config.inputAttributeDescriptions.push_back(cube_color);
+
+    VkPipeline cube_pipelines[4];
+    for (uint32_t wire = 0; wire < 2; wire++) {
+        for (uint32_t cull = 0; cull < 2; cull++) {
+            cube_pipe_config.polygonDrawMode = wire ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
+            cube_pipe_config.triangleCullingMode = (cull == 0) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+            cube_pipelines[wire * 2 + cull] = vklCreateGraphicsPipeline(cube_pipe_config);
+        }
+    }
+
+    UniformBufferObject cube_ubo{};
+    cube_ubo.color = glm::vec4(0.75f, 0.25f, 0.01f, 1.0f);
+
+    glm::mat4 model_cube = glm::rotate(glm::mat4(1.0f), glm::radians(45.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    cube_ubo.view_projection = view_projection * model_cube;
+
+    VkDeviceSize cube_buffer_size = sizeof(cube_ubo);
+    VkBuffer cube_buffer = vklCreateHostCoherentBufferWithBackingMemory(cube_buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(cube_buffer, &cube_ubo, cube_buffer_size);
+    vklEnablePipelineHotReloading(window, GLFW_KEY_F5);
+
+    VkDescriptorSet descriptor_set_cube;
+    VkDescriptorSetAllocateInfo descriptor_set_allocate_info_cube{};
+    descriptor_set_allocate_info_cube.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptor_set_allocate_info_cube.pNext = nullptr;
+    descriptor_set_allocate_info_cube.descriptorPool = descriptor_pool;
+    descriptor_set_allocate_info_cube.descriptorSetCount = 1;
+    descriptor_set_allocate_info_cube.pSetLayouts = &descriptor_set_layout;
+
+    VkResult allocate_des_result_cube = vkAllocateDescriptorSets(vk_device, &descriptor_set_allocate_info_cube, &descriptor_set_cube);
+    VKL_CHECK_VULKAN_ERROR(allocate_des_result_cube);
+
+    VkDescriptorBufferInfo descriptor_buffer_info_cube{};
+    descriptor_buffer_info_cube.buffer = cube_buffer;
+    descriptor_buffer_info_cube.offset = 0;
+    descriptor_buffer_info_cube.range = cube_buffer_size;
+
+    VkWriteDescriptorSet write_descriptor_set_cube{};
+    write_descriptor_set_cube.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set_cube.pNext = nullptr;
+    write_descriptor_set_cube.dstSet = descriptor_set_cube;
+    write_descriptor_set_cube.dstBinding = 0;
+    write_descriptor_set_cube.dstArrayElement = 0;
+    write_descriptor_set_cube.descriptorCount = 1;
+    write_descriptor_set_cube.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_descriptor_set_cube.pImageInfo = nullptr;
+    write_descriptor_set_cube.pBufferInfo = &descriptor_buffer_info_cube;
+    write_descriptor_set_cube.pTexelBufferView = nullptr;
+
+    vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set_cube, 0, nullptr);
     /* --------------------------------------------- */
     // Subtask 1.10: Set-up the Render Loop
     while (!glfwWindowShouldClose(window)) {
@@ -685,8 +989,58 @@ int main(int argc, char** argv) {
         vklWaitForNextSwapchainImage();
         vklStartRecordingCommands();
         //gcgDrawTeapot(pipeline, descriptor_set);
-        gcgDrawTeapot(pipeline, descriptor_set1);
-        gcgDrawTeapot(pipeline, descriptor_set2);
+        //gcgDrawTeapot(pipeline, descriptor_set1);
+        //gcgDrawTeapot(pipeline, descriptor_set2);
+        VkPipeline curr_pipeline = pipelines[is_wireframe * 2 + cull_mode_idx];
+        //gcgDrawTeapot(curr_pipeline, descriptor_set1); // subtask 3.3: Interaction
+        //gcgDrawTeapot(curr_pipeline, descriptor_set2); // subtask 3.3: Interaction
+
+        // Subtask 3.4: Command Buffer Recording
+        VkCommandBuffer cmdBuffer = vklGetCurrentCommandBuffer();
+        VkPipelineLayout pipeline_layout = vklGetLayoutForPipeline(curr_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_pipeline);
+
+        VkBuffer vertex_buffer = gcgGetTeapotPositionsBuffer();
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertex_buffer, offsets);
+
+        VkBuffer index_buffer = gcgGetTeapotIndicesBuffer();
+        vkCmdBindIndexBuffer(cmdBuffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
+
+        // draw teapot 1
+        //vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_set1, 0, nullptr);
+        //vkCmdDrawIndexed(cmdBuffer, gcgGetNumTeapotIndices(), 1, 0, 0, 0);
+
+        // draw teapot 2
+        //vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_set2, 0, nullptr);
+        //vkCmdDrawIndexed(cmdBuffer, gcgGetNumTeapotIndices(), 1, 0, 0, 0);
+
+        // Subtask 3.5: Cube Geometry (cube map)
+        //vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cube_vertex_buffer, offsets);
+        //vkCmdBindIndexBuffer(cmdBuffer, cube_index_buffer, 0, VK_INDEX_TYPE_UINT32);
+        //vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
+        //vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
+
+        // Subtask 3.6 - 3.7: Cornell Box
+        VkPipeline curr_cornell_pipeline = cornell_pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipelineLayout cornell_pipeline_layout = vklGetLayoutForPipeline(curr_cornell_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_cornell_pipeline);
+
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cornell_vertex_buffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, cornell_index_buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cornell_pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cornell_indices.size()), 1, 0, 0, 0);
+
+        // Subtask 3.8: Test Scene
+        VkPipeline curr_cube_pipeline = cube_pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipelineLayout cube_pipeline_layout = vklGetLayoutForPipeline(curr_cube_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_cube_pipeline);
+
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cubeVertex_buffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, cubeIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cube_pipeline_layout, 0, 1, &descriptor_set_cube, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
+
         vklEndRecordingCommands();
         vklPresentCurrentSwapchainImage();
 
@@ -711,17 +1065,36 @@ int main(int argc, char** argv) {
     // Subtask 1.12: Cleanup
     /* --------------------------------------------- */
     vklDestroyGraphicsPipeline(pipeline);
+    for (uint32_t i = 0; i < 4; i++) {
+        vklDestroyGraphicsPipeline(pipelines[i]);
+        vklDestroyGraphicsPipeline(cornell_pipelines[i]);
+        vklDestroyGraphicsPipeline(cube_pipelines[i]);
+    }
     vklDestroyHostCoherentBufferAndItsBackingMemory(buffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(buffer1);
     vklDestroyHostCoherentBufferAndItsBackingMemory(buffer2);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cube_buffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cube_vertex_buffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cube_index_buffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_vertex_buffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_index_buffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cubeVertex_buffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cubeIndexBuffer);
+
     vkDestroyDescriptorSetLayout(vk_device, descriptor_set_layout, nullptr);
     vkDestroyDescriptorPool(vk_device, descriptor_pool, nullptr);
+
     vklDestroyDeviceLocalImageAndItsBackingMemory(depth_image);
+
     gcgDestroyFramework();
+
     vkDestroySwapchainKHR(vk_device, vk_swapchain, nullptr);
+
     vkDestroyDevice(vk_device, nullptr);
+
     vkDestroySurfaceKHR(vk_instance, vk_surface, nullptr);
     vkDestroyInstance(vk_instance, nullptr);
+
     glfwDestroyWindow(window);
     glfwTerminate();
 
