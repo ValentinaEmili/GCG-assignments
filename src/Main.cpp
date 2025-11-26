@@ -1032,6 +1032,9 @@ int main(int argc, char** argv) {
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cornell_indices.size()), 1, 0, 0, 0);
 
         // Subtask 3.8: Test Scene
+        cube_ubo.view_projection =  view_projection * model_cube;
+        vklCopyDataIntoHostCoherentBuffer(cube_buffer, &cube_ubo, cube_buffer_size);
+
         VkPipeline curr_cube_pipeline = cube_pipelines[is_wireframe * 2 + cull_mode_idx];
         VkPipelineLayout cube_pipeline_layout = vklGetLayoutForPipeline(curr_cube_pipeline);
         vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_cube_pipeline);
