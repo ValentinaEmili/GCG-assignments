@@ -966,8 +966,8 @@ int main(int argc, char** argv) {
         camera_pos.z = zoom * cos(pitch) * cos(yaw);
 
         glm::vec3 direction = glm::normalize(target - camera_pos);
-        glm::vec3 right = glm::normalize(glm::cross(world_up, direction));
-        glm::vec3 camera_up = glm::cross(direction, right);
+        glm::vec3 right = glm::normalize(glm::cross(direction, world_up));
+        glm::vec3 camera_up = glm::cross(right, direction);
 
         view = glm::mat4(1.0f);
         view[0] = glm::vec4(right, 0.0f);
@@ -1230,8 +1230,8 @@ void mouse_callback(GLFWwindow* window, double x_pos, double y_pos) {
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
         float strafe = 0.1f;
         glm::vec3 direction = glm::normalize(target - camera_pos);
-        glm::vec3 right = glm::normalize(glm::cross(world_up, direction));
-        glm::vec3 camera_up = glm::cross(direction, right);
+        glm::vec3 right = glm::normalize(glm::cross(direction, world_up));
+        glm::vec3 camera_up = glm::cross(right, direction);
         target += (-right * x_offset * strafe) + (camera_up * y_offset * strafe);
     }
 
