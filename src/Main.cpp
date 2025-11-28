@@ -965,6 +965,11 @@ int main(int argc, char** argv) {
         camera_pos.y = zoom * sin(pitch);
         camera_pos.z = zoom * cos(pitch) * cos(yaw);
 
+        bool strafing = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+        if (strafing) {
+            camera_pos += target;
+        }
+
         glm::vec3 direction = glm::normalize(target - camera_pos);
         glm::vec3 right = glm::normalize(glm::cross(direction, world_up));
         glm::vec3 camera_up = glm::cross(right, direction);
@@ -1228,11 +1233,12 @@ void mouse_callback(GLFWwindow* window, double x_pos, double y_pos) {
 
     // Subtask 2.8: Strafe
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
-        float strafe = 0.1f;
+        float strafe_speed = 0.05f;
         glm::vec3 direction = glm::normalize(target - camera_pos);
         glm::vec3 right = glm::normalize(glm::cross(direction, world_up));
         glm::vec3 camera_up = glm::cross(right, direction);
-        target += (-right * x_offset * strafe) + (camera_up * y_offset * strafe);
+        glm::vec3 strafe = (-right * x_offset * strafe_speed) + (-camera_up * y_offset * strafe_speed);
+        target += strafe;
     }
 
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) != GLFW_PRESS &&
