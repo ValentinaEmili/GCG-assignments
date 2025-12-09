@@ -230,6 +230,13 @@ std::vector<uint32_t> cornell_indices = {
     // bottom
     16, 17, 18, 16, 18, 19
 };
+
+struct cylinderMesh {
+    std::vector<cubeVertex> vertices;
+    std::vector<uint32_t> indices;
+};
+
+cylinderMesh buildCylinder(float height, float radius, uint32_t n_segments, glm::vec3 color);
 /* --------------------------------------------- */
 // Main
 /* --------------------------------------------- */
@@ -956,6 +963,83 @@ int main(int argc, char** argv) {
     write_descriptor_set_cube.pTexelBufferView = nullptr;
 
     vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set_cube, 0, nullptr);
+
+    // Subtask 4.1: Cylinder Geometry
+    cylinderMesh cylinder = buildCylinder(5.0f, 3.0f, 10, glm::vec3(169.0f, 169.0f, 169.0f));
+    VkDeviceSize cylinderVertexBuffer_size = sizeof(cubeVertex) * cylinder.vertices.size();
+    VkBuffer cylinderVertex_buffer = vklCreateHostCoherentBufferWithBackingMemory(cylinderVertexBuffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(cylinderVertex_buffer, cylinder.vertices.data(), cylinderVertexBuffer_size);
+
+    VkDeviceSize cylinderIndexBuffer_size = sizeof(uint32_t) * cylinder.indices.size();
+    VkBuffer cylinderIndexBuffer = vklCreateHostCoherentBufferWithBackingMemory(cylinderIndexBuffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(cylinderIndexBuffer, cylinder.indices.data(), cylinderIndexBuffer_size);
+
+    VklGraphicsPipelineConfig cylinder_pipe_config = cube_pipe_config;
+    VkVertexInputBindingDescription cylinder_bindings = {};
+    cylinder_bindings.binding = 0;
+    cylinder_bindings.stride = sizeof(cubeVertex);
+    cylinder_bindings.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    cylinder_pipe_config.vertexInputBuffers.clear();
+    cylinder_pipe_config.inputAttributeDescriptions.clear();
+    cylinder_pipe_config.vertexInputBuffers.push_back(cylinder_bindings);
+
+    vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.vert");
+    fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.frag");
+    cylinder_pipe_config.vertexShaderPath = vertex_shader_path.c_str();
+    cylinder_pipe_config.fragmentShaderPath = fragment_shader_path.c_str();
+
+    // attribute: position
+    VkVertexInputAttributeDescription cylinder_position = {};
+    cylinder_position.location = 0;
+    cylinder_position.binding = 0;
+    cylinder_position.format = VK_FORMAT_R32G32B32_SFLOAT;
+    cylinder_position.offset = offsetof(cubeVertex, position);
+    cylinder_pipe_config.inputAttributeDescriptions.push_back(cylinder_position);
+
+    // attribute: color
+    VkVertexInputAttributeDescription cylinder_color = {};
+    cylinder_color.location = 1;
+    cylinder_color.binding = 0;
+    cylinder_color.format = VK_FORMAT_R32G32B32_SFLOAT;
+    cylinder_color.offset = offsetof(cubeVertex, color);
+    cylinder_pipe_config.inputAttributeDescriptions.push_back(cylinder_color);
+
+    VkPipeline cylinder_pipelines[4];
+    for (uint32_t wire = 0; wire < 2; wire++) {
+        for (uint32_t cull = 0; cull < 2; cull++) {
+            cylinder_pipe_config.polygonDrawMode = wire ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
+            cylinder_pipe_config.triangleCullingMode = (cull == 0) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+            cylinder_pipelines[wire * 2 + cull] = vklCreateGraphicsPipeline(cylinder_pipe_config);
+        }
+    }
+
+    UniformBufferObject cylinder_ubo{};
+    cylinder_ubo.view_projection = view_projection * model_cube;
+
+    VkDeviceSize cylinder_buffer_size = sizeof(cylinder_ubo);
+    VkBuffer cylinder_buffer = vklCreateHostCoherentBufferWithBackingMemory(cylinder_buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(cylinder_buffer, &cylinder_ubo, cylinder_buffer_size);
+    vklEnablePipelineHotReloading(window, GLFW_KEY_F5);
+
+    VkDescriptorBufferInfo descriptor_buffer_info_cylinder = descriptor_buffer_info_cube;
+    descriptor_buffer_info_cylinder.buffer = cylinder_buffer;
+    descriptor_buffer_info_cylinder.offset = 0;
+    descriptor_buffer_info_cylinder.range = cylinder_buffer_size;
+
+    VkWriteDescriptorSet write_descriptor_set_cylinder = write_descriptor_set_cube;
+    write_descriptor_set_cube.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set_cube.pNext = nullptr;
+    write_descriptor_set_cube.dstSet = descriptor_set_cube;
+    write_descriptor_set_cube.dstBinding = 0;
+    write_descriptor_set_cube.dstArrayElement = 0;
+    write_descriptor_set_cube.descriptorCount = 1;
+    write_descriptor_set_cube.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_descriptor_set_cube.pImageInfo = nullptr;
+    write_descriptor_set_cube.pBufferInfo = &descriptor_buffer_info_cylinder;
+    write_descriptor_set_cube.pTexelBufferView = nullptr;
+
+    vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set_cylinder, 0, nullptr);
     /* --------------------------------------------- */
     // Subtask 1.10: Set-up the Render Loop
     while (!glfwWindowShouldClose(window)) {
@@ -1027,6 +1111,7 @@ int main(int argc, char** argv) {
         //vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
 
         // Subtask 3.6 - 3.7: Cornell Box
+        /*
         VkPipeline curr_cornell_pipeline = cornell_pipelines[is_wireframe * 2 + cull_mode_idx];
         VkPipelineLayout cornell_pipeline_layout = vklGetLayoutForPipeline(curr_cornell_pipeline);
         vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_cornell_pipeline);
@@ -1048,6 +1133,13 @@ int main(int argc, char** argv) {
         vkCmdBindIndexBuffer(cmdBuffer, cubeIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cube_pipeline_layout, 0, 1, &descriptor_set_cube, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
+        */
+
+        // Subtask 4.1
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cylinderVertex_buffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, cylinderIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cylinder.indices.size()), 1, 0, 0, 0);
 
         vklEndRecordingCommands();
         vklPresentCurrentSwapchainImage();
@@ -1251,4 +1343,57 @@ void scroll_callback(GLFWwindow* window, double x_offset, double y_offset) {
     zoom -= static_cast<float>(y_offset);
     if (zoom < 1.0f) zoom = 1.0f;
     if (zoom > 45.0f) zoom = 45.0f;
+}
+
+
+// Subtask 4.1: Cylinder Geometry
+cylinderMesh buildCylinder(float height, float radius, uint32_t n_segments, glm::vec3 color) {
+    cylinderMesh mesh;
+    auto& vertices = mesh.vertices;
+    auto& indices = mesh.indices;
+
+    vertices.push_back({{0.0f, height / 2, 0.0f}, color});
+    vertices.push_back({{0.0f, -height / 2, 0.0f}, color});
+
+    for (uint32_t n = 0; n < n_segments; ++n) {
+        float angle = float(n) / n_segments * glm::two_pi<float>();
+        float x = radius * glm::cos(angle);
+        float z = radius * glm::sin(angle);
+        vertices.push_back({{x, height / 2, z}, color});
+        vertices.push_back({{x, -height / 2, z}, color});
+    }
+    // top
+    uint32_t topCenter = 0;
+    for (uint32_t n = 0; n < n_segments; ++n) {
+        uint32_t next = (n + 1) % n_segments;
+        indices.push_back(topCenter);
+        indices.push_back(2 + n * 2);
+        indices.push_back(2 + next * 2);
+    }
+    // bottom
+    uint32_t bottomCenter = topCenter + 1;
+    uint32_t bottom = bottomCenter + 1;
+    for (uint32_t n = 0; n < n_segments; ++n) {
+        uint32_t next = (n + 1) % n_segments;
+        indices.push_back(bottomCenter);
+        indices.push_back(3 + next * 2);
+        indices.push_back(3 + n * 2);
+    }
+    // side faces
+    for (uint32_t n = 0; n < n_segments; ++n) {
+        n = (n + 1) % n_segments;
+        uint32_t next = (n + 1) % n_segments;
+        uint32_t top_curr = 2 + n * 2;
+        uint32_t top_next = 2 + next * 2;
+        uint32_t bottom_curr = top_curr + 1;
+        uint32_t bottom_next = top_next + 1;
+        indices.push_back(top_curr);
+        indices.push_back(bottom_curr);
+        indices.push_back(top_next);
+
+        indices.push_back(top_next);
+        indices.push_back(bottom_curr);
+        indices.push_back(bottom_next);
+    }
+    return mesh;
 }
