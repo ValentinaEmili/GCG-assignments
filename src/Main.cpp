@@ -1352,48 +1352,49 @@ cylinderMesh buildCylinder(float height, float radius, uint32_t n_segments, glm:
     auto& vertices = mesh.vertices;
     auto& indices = mesh.indices;
 
+    // top
     vertices.push_back({{0.0f, height / 2, 0.0f}, color});
-    vertices.push_back({{0.0f, -height / 2, 0.0f}, color});
-
     for (uint32_t n = 0; n < n_segments; ++n) {
         float angle = float(n) / n_segments * glm::two_pi<float>();
         float x = radius * glm::cos(angle);
         float z = radius * glm::sin(angle);
         vertices.push_back({{x, height / 2, z}, color});
-        vertices.push_back({{x, -height / 2, z}, color});
     }
-    // top
     uint32_t topCenter = 0;
     for (uint32_t n = 0; n < n_segments; ++n) {
         uint32_t next = (n + 1) % n_segments;
         indices.push_back(topCenter);
-        indices.push_back(2 + n * 2);
-        indices.push_back(2 + next * 2);
+        indices.push_back(n + 1);
+        indices.push_back(next + 1);
     }
     // bottom
+    vertices.push_back({{0.0f, -height / 2, 0.0f}, color});
+    for (uint32_t n = 0; n < n_segments; ++n) {
+        float angle = float(n) / n_segments * glm::two_pi<float>();
+        float x = radius * glm::cos(angle);
+        float z = radius * glm::sin(angle);
+        vertices.push_back({{x, -height / 2, z}, color});
+    }
     uint32_t bottomCenter = topCenter + 1;
-    uint32_t bottom = bottomCenter + 1;
     for (uint32_t n = 0; n < n_segments; ++n) {
         uint32_t next = (n + 1) % n_segments;
         indices.push_back(bottomCenter);
-        indices.push_back(3 + next * 2);
-        indices.push_back(3 + n * 2);
+        indices.push_back(bottomCenter + next);
+        indices.push_back(bottomCenter + next + 1);
     }
     // side faces
     for (uint32_t n = 0; n < n_segments; ++n) {
-        n = (n + 1) % n_segments;
-        uint32_t next = (n + 1) % n_segments;
-        uint32_t top_curr = 2 + n * 2;
-        uint32_t top_next = 2 + next * 2;
-        uint32_t bottom_curr = top_curr + 1;
-        uint32_t bottom_next = top_next + 1;
-        indices.push_back(top_curr);
-        indices.push_back(bottom_curr);
-        indices.push_back(top_next);
-
-        indices.push_back(top_next);
+        uint32_t top_curr = (n + 1) % n_segments;
+        uint32_t top_next = top_curr + 1;
+        uint32_t bottom_curr = top_curr + n_segments + 1;
+        uint32_t bottom_next = bottom_curr + 1;
         indices.push_back(bottom_curr);
         indices.push_back(bottom_next);
+        indices.push_back(top_next);
+
+        indices.push_back(bottom_curr);
+        indices.push_back(top_next);
+        indices.push_back(top_curr);
     }
     return mesh;
 }
