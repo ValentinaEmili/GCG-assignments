@@ -5,13 +5,15 @@
  * Original version created by Lukas Gersthofer and Bernhard Steiner.
  * Vulkan edition created by Johannes Unterguggenberger (junt@cg.tuwien.ac.at).
  */
+#include <complex>
+
 #include "PathUtils.h"
 #include "Utils.h"
 
 #include <vulkan/vulkan.h>
 
 #include <vector>
-
+#include <glm/gtx/rotate_vector.hpp>
 
 #undef min
 #undef max
@@ -120,11 +122,15 @@ glm::vec3 world_up = glm::vec3(0.0f, 1.0f, 0.0f);
 void mouse_callback(GLFWwindow* window, double x_pos, double y_pos);
 void scroll_callback(GLFWwindow* window, double x_offset, double y_offset);
 
+// Subtask 4.4: Test Scene
+float cube_width = 0.34f;
+float cube_depth = 0.34f;
+float cube_height = 0.34f;
 
 // Subtask 3.8: Test Scene
-float cube_width = 2.0f;
-float cube_height = 1.3f;
-float cube_depth = 1.3f;
+//float cube_width = 2.0f;
+//float cube_height = 1.3f;
+//float cube_depth = 1.3f;
 
 struct cubeVertex {
     glm::vec3 position;
@@ -169,15 +175,15 @@ std::vector<uint32_t> cube_indices = {
     // front
     0, 1, 2, 0, 2, 3,
     // back
-    4, 5, 6, 4, 6, 7,
+    4, 6, 5, 4, 7, 6,
     // left
-    0, 4, 7, 0, 7, 3,
+    0, 3, 7, 0, 7, 4,
     // right
-    1, 5, 6, 1, 6, 2,
+    1, 6, 2, 1, 5, 6,
     // top
     3, 2, 6, 3, 6, 7,
     // bottom
-    0, 1, 5, 0, 5, 4
+    0, 5, 1, 0, 4, 5
 };
 
 // Subtask 3.6 - 3.7: Cornell Box
@@ -219,23 +225,19 @@ std::vector<CornellVertex> cornell_vertices_temp = {
 };
 
 std::vector<uint32_t> cornell_indices = {
-    //back
-    0, 1, 2, 0, 2, 3,
+    // back
+    0, 3, 1, 3, 2, 1,
     // left
-    4, 5, 6, 4, 6, 7,
+    4, 7, 5, 7, 6, 5,
     // right
     8, 9, 10, 8, 10, 11,
     // top
     12, 13, 14, 12, 14, 15,
     // bottom
-    16, 17, 18, 16, 18, 19
+    16, 18, 17, 16, 19, 18
 };
 
 // Subtask 4.1: Cylinder Geometry
-struct Mesh {
-    glm::vec3 vertices;
-};
-
 struct MeshResources {
     UniformBufferObject ubo;
     VkBuffer uniformBuffer;
@@ -244,13 +246,17 @@ struct MeshResources {
     VkBuffer vertexBuffer;
     VkBuffer indexBuffer;
 };
-MeshResources createMesh(std::vector<Mesh>& vertices, std::vector<uint32_t>& indices, glm::mat4 view_projection, GLFWwindow* window, VkDescriptorSet descriptor_set, VkDevice vk_device);
+MeshResources createMesh(std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices, glm::mat4 view_projection, GLFWwindow* window, VkDescriptorSet descriptor_set, VkDevice vk_device);
 
-
-void buildCylinder(float height, float radius, uint32_t n_segments, std::vector<Mesh>& vertices, std::vector<uint32_t>& indices);
+void buildCylinder(float h, float r, uint32_t n, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices);
 
 // Subtask 4.2: Sphere Geometry
-void buildSphere(uint32_t longitudinal_segments, uint32_t latitudinal_segments, float radius, std::vector<Mesh>& vertices, std::vector<uint32_t>& indices);
+void buildSphere(uint32_t n, uint32_t m, float r, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices);
+
+// Subtask 4.3: Bézier Cylinder Geometry
+glm::vec3 bezierPoint(std::vector<glm::vec3>& vertices, float t);
+glm::vec3 derivativeBezierPoint(std::vector<glm::vec3>& vertices, float t);
+void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>& controlPoints, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices);
 /* --------------------------------------------- */
 // Main
 /* --------------------------------------------- */
@@ -911,8 +917,8 @@ int main(int argc, char** argv) {
 
     cube_pipe_config.vertexInputBuffers.push_back(cube_bindings);
 
-    vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.vert");
-    fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.frag");
+    vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/shader.vert");
+    fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/shader.frag");
     cube_pipe_config.vertexShaderPath = vertex_shader_path.c_str();
     cube_pipe_config.fragmentShaderPath = fragment_shader_path.c_str();
 
@@ -924,14 +930,6 @@ int main(int argc, char** argv) {
     cube_position.offset = offsetof(cubeVertex, position);
     cube_pipe_config.inputAttributeDescriptions.push_back(cube_position);
 
-    // attribute: color
-    VkVertexInputAttributeDescription cube_color = {};
-    cube_color.location = 1;
-    cube_color.binding = 0;
-    cube_color.format = VK_FORMAT_R32G32B32_SFLOAT;
-    cube_color.offset = offsetof(cubeVertex, color);
-    cube_pipe_config.inputAttributeDescriptions.push_back(cube_color);
-
     VkPipeline cube_pipelines[4];
     for (uint32_t wire = 0; wire < 2; wire++) {
         for (uint32_t cull = 0; cull < 2; cull++) {
@@ -942,9 +940,14 @@ int main(int argc, char** argv) {
     }
 
     UniformBufferObject cube_ubo{};
-    cube_ubo.color = glm::vec4(0.75f, 0.25f, 0.01f, 1.0f);
+    //cube_ubo.color = glm::vec4(0.75f, 0.25f, 0.01f, 1.0f);
 
-    glm::mat4 model_cube = glm::rotate(glm::mat4(1.0f), glm::radians(45.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    glm::mat4 model_cube = glm::mat4(1.0f);
+    //model_cube = glm::rotate(glm::mat4(1.0f), glm::radians(45.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    // Subtask 4.4: Test Scene (rotation + translation)
+    cube_ubo.color = glm::vec4(0.0f, 0.21f, 0.16f, 1.0f);
+    model_cube = glm::translate(model_cube, glm::vec3(-0.6f, -0.9f, 0.0f));
+    model_cube = glm::rotate(model_cube, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     cube_ubo.view_projection = view_projection * model_cube;
 
     VkDeviceSize cube_buffer_size = sizeof(cube_ubo);
@@ -983,48 +986,78 @@ int main(int argc, char** argv) {
     vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set_cube, 0, nullptr);
 
     // Subtask 4.1: Cylinder Geometry
-    std::vector<Mesh> cylinderVertices;
+    std::vector<glm::vec3> cylinderVertices;
     std::vector<uint32_t> cylinderIndices;
     buildCylinder(1.6f, 0.21f, 20, cylinderVertices, cylinderIndices);
 
-    MeshResources cylinder = createMesh(cylinderVertices, cylinderIndices, view_projection, window, descriptor_set, vk_device);
+    VkDescriptorSet descriptor_set_cylinder{};
+    VkDescriptorSetAllocateInfo alloc_info_cylinder{};
+    alloc_info_cylinder.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info_cylinder.descriptorPool = descriptor_pool;
+    alloc_info_cylinder.descriptorSetCount = 1;
+    alloc_info_cylinder.pSetLayouts = &descriptor_set_layout;
+    VkResult res = vkAllocateDescriptorSets(vk_device, &alloc_info_cylinder, &descriptor_set_cylinder);
+    VKL_CHECK_VULKAN_ERROR(res);
 
-    UniformBufferObject cylinder_ubo;
-    VkBuffer cylinder_buffer, cylinderVertexBuffer, cylinderIndexBuffer;
-    VkDeviceSize cylinder_buffer_size;
-    VkPipeline cylinder_pipelines[4];
+    MeshResources cylinder = createMesh(cylinderVertices, cylinderIndices, view_projection, window, descriptor_set_cylinder, vk_device);
 
-    cylinder_ubo = cylinder.ubo;
     cylinder.ubo.color = glm::vec4(0.75f, 0.25f, 0.01f, 1.0f);
-    cylinder_buffer = cylinder.uniformBuffer;
-    cylinder_buffer_size = cylinder.uniformBufferSize;
-    for (uint32_t i = 0; i < 4; i++) {
-        cylinder_pipelines[i] = cylinder.pipelines[i];
-    }
-    cylinderVertexBuffer = cylinder.vertexBuffer;
-    cylinderIndexBuffer = cylinder.indexBuffer;
+
+    // Subtask 4.4: Test Scene
+    glm::mat4 model_cylinder = glm::mat4(1.0f);
+    model_cylinder = glm::translate(model_cylinder, glm::vec3(0.6f, 0.3f, 0.0f));
+    cylinder.ubo.view_projection = view_projection * model_cylinder;
 
     // Subtask 4.2: Sphere Geometry
-    std::vector<Mesh> sphereVertices;
+    std::vector<glm::vec3> sphereVertices;
     std::vector<uint32_t> sphereIndices;
     buildSphere(36, 18, 0.26, sphereVertices, sphereIndices);
 
-    MeshResources sphere = createMesh(sphereVertices, sphereIndices, view_projection, window, descriptor_set, vk_device);
+    VkDescriptorSet descriptor_set_sphere{};
+    VkDescriptorSetAllocateInfo alloc_info_sphere{};
+    alloc_info_sphere.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info_sphere.descriptorPool = descriptor_pool;
+    alloc_info_sphere.descriptorSetCount = 1;
+    alloc_info_sphere.pSetLayouts = &descriptor_set_layout;
+    res = vkAllocateDescriptorSets(vk_device, &alloc_info_sphere, &descriptor_set_sphere);
+    VKL_CHECK_VULKAN_ERROR(res);
 
-    UniformBufferObject sphere_ubo;
-    VkBuffer sphere_buffer, sphereVertexBuffer, sphereIndexBuffer;
-    VkDeviceSize sphere_buffer_size;
-    VkPipeline sphere_pipelines[4];
+    MeshResources sphere = createMesh(sphereVertices, sphereIndices, view_projection, window, descriptor_set_sphere, vk_device);
 
-    sphere_ubo = sphere.ubo;
-    sphere_ubo.color = glm::vec4(0.12f, 0.12f, 0.12f, 1.0f);
-    sphere_buffer = sphere.uniformBuffer;
-    sphere_buffer_size = sphere.uniformBufferSize;
-    for (uint32_t i = 0; i < 4; i++) {
-        sphere_pipelines[i] = sphere.pipelines[i];
-    }
-    sphereVertexBuffer = sphere.vertexBuffer;
-    sphereIndexBuffer = sphere.indexBuffer;
+    sphere.ubo.color = glm::vec4(0.12f, 0.12f, 0.12f, 1.0f);
+    // Subtask 4.4: Test Scene
+    glm::mat4 model_sphere = glm::mat4(1.0f);
+    model_sphere = glm::translate(model_sphere, glm::vec3(0.6f, -0.9f, 0.0f));
+    sphere.ubo.view_projection = view_projection * model_sphere;
+
+    // Subtask 4.3: Bézier Cylinder Geometry
+    std::vector<glm::vec3> bezierCylinderVertices;
+    std::vector<uint32_t> bezierCylinderIndices;
+    std::vector<glm::vec3> controlPoints = {
+        {-0.3f, 0.6f, 0.0f},
+        {0.0f, 1.6f, 0.0f},
+        {1.4f, 0.3f, 0.0f},
+        {0.0f, 0.3f, 0.0f},
+        {0.0f, -0.5f, 0.0f}
+    };
+    buildBezierCylinder(36, 20, 0.21, controlPoints,bezierCylinderVertices, bezierCylinderIndices);
+
+    VkDescriptorSet descriptor_set_bezierCylinder{};
+    VkDescriptorSetAllocateInfo alloc_info_bezierCylinder{};
+    alloc_info_bezierCylinder.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info_bezierCylinder.descriptorPool = descriptor_pool;
+    alloc_info_bezierCylinder.descriptorSetCount = 1;
+    alloc_info_bezierCylinder.pSetLayouts = &descriptor_set_layout;
+    res = vkAllocateDescriptorSets(vk_device, &alloc_info_bezierCylinder, &descriptor_set_bezierCylinder);
+    VKL_CHECK_VULKAN_ERROR(res);
+
+    MeshResources bezierCylinder = createMesh(bezierCylinderVertices, bezierCylinderIndices, view_projection, window, descriptor_set_bezierCylinder, vk_device);
+
+    bezierCylinder.ubo.color = glm::vec4(0.75f, 0.25f, 0.01f, 1.0f);
+    // Subtask 4.4: Test Scene
+    glm::mat4 model_bezierCylinder = glm::mat4(1.0f);
+    model_bezierCylinder = glm::translate(model_bezierCylinder, glm::vec3(-0.6f, 0.0f, 0.0f));
+    bezierCylinder.ubo.view_projection = view_projection * model_bezierCylinder;
 
     /* --------------------------------------------- */
     // Subtask 1.10: Set-up the Render Loop
@@ -1097,7 +1130,6 @@ int main(int argc, char** argv) {
         //vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
 
         // Subtask 3.6 - 3.7: Cornell Box
-        /*
         VkPipeline curr_cornell_pipeline = cornell_pipelines[is_wireframe * 2 + cull_mode_idx];
         VkPipelineLayout cornell_pipeline_layout = vklGetLayoutForPipeline(curr_cornell_pipeline);
         vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_cornell_pipeline);
@@ -1119,37 +1151,48 @@ int main(int argc, char** argv) {
         vkCmdBindIndexBuffer(cmdBuffer, cubeIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cube_pipeline_layout, 0, 1, &descriptor_set_cube, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
-        */
 
         // Subtask 4.1: Cylinder Geometry
-        /*
-        cylinder_ubo.view_projection = view_projection;
-        vklCopyDataIntoHostCoherentBuffer(cylinder_buffer, &cylinder_ubo, cylinder_buffer_size);
+        cylinder.ubo.view_projection = view_projection * model_cylinder;
+        vklCopyDataIntoHostCoherentBuffer(cylinder.uniformBuffer, &cylinder.ubo, cylinder.uniformBufferSize);
 
-        VkPipeline curr_cylinder_pipeline = cylinder_pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipeline curr_cylinder_pipeline = cylinder.pipelines[is_wireframe * 2 + cull_mode_idx];
         VkPipelineLayout cylinder_pipeline_layout = vklGetLayoutForPipeline(curr_cylinder_pipeline);
         vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_cylinder_pipeline);
 
-        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cylinderVertexBuffer, offsets);
-        vkCmdBindIndexBuffer(cmdBuffer, cylinderIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cylinder_pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-        vkCmdDrawIndexed(cmdBuffer, cylinderIndices.size(), 1, 0, 0, 0);
-        */
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cylinder.vertexBuffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, cylinder.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cylinder_pipeline_layout, 0, 1, &descriptor_set_cylinder, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cylinderIndices.size()), 1, 0, 0, 0);
 
         // Subtask 4.2: Sphere Geometry
-        /*
-        sphere_ubo.view_projection = view_projection;
-        vklCopyDataIntoHostCoherentBuffer(sphere_buffer, &sphere_ubo, sphere_buffer_size);
 
-        VkPipeline curr_sphere_pipeline = sphere_pipelines[is_wireframe * 2 + cull_mode_idx];
+        sphere.ubo.view_projection = view_projection * model_sphere;
+        vklCopyDataIntoHostCoherentBuffer(sphere.uniformBuffer, &sphere.ubo, sphere.uniformBufferSize);
+
+        VkPipeline curr_sphere_pipeline = sphere.pipelines[is_wireframe * 2 + cull_mode_idx];
         VkPipelineLayout sphere_pipeline_layout = vklGetLayoutForPipeline(curr_sphere_pipeline);
         vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_sphere_pipeline);
 
-        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &sphereVertexBuffer, offsets);
-        vkCmdBindIndexBuffer(cmdBuffer, sphereIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-        vkCmdDrawIndexed(cmdBuffer, sphereIndices.size(), 1, 0, 0, 0);
-        */
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &sphere.vertexBuffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, sphere.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_pipeline_layout, 0, 1, &descriptor_set_sphere, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(sphereIndices.size()), 1, 0, 0, 0);
+
+
+        // Subtask 4.3: Bézier Cylinder
+
+        bezierCylinder.ubo.view_projection = view_projection * model_bezierCylinder;
+        vklCopyDataIntoHostCoherentBuffer(bezierCylinder.uniformBuffer, &bezierCylinder.ubo, bezierCylinder.uniformBufferSize);
+
+        VkPipeline curr_bezierCylinder_pipeline = bezierCylinder.pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipelineLayout bezierCylinder_pipeline_layout = vklGetLayoutForPipeline(curr_bezierCylinder_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_bezierCylinder_pipeline);
+
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &bezierCylinder.vertexBuffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, bezierCylinder.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bezierCylinder_pipeline_layout, 0, 1, &descriptor_set_bezierCylinder, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(bezierCylinderIndices.size()), 1, 0, 0, 0);
 
         vklEndRecordingCommands();
         vklPresentCurrentSwapchainImage();
@@ -1179,8 +1222,9 @@ int main(int argc, char** argv) {
         vklDestroyGraphicsPipeline(pipelines[i]);
         vklDestroyGraphicsPipeline(cornell_pipelines[i]);
         vklDestroyGraphicsPipeline(cube_pipelines[i]);
-        vklDestroyGraphicsPipeline(cylinder_pipelines[i]);
-        vklDestroyGraphicsPipeline(sphere_pipelines[i]);
+        vklDestroyGraphicsPipeline(cylinder.pipelines[i]);
+        vklDestroyGraphicsPipeline(sphere.pipelines[i]);
+        vklDestroyGraphicsPipeline(bezierCylinder.pipelines[i]);
     }
     vklDestroyHostCoherentBufferAndItsBackingMemory(buffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(buffer1);
@@ -1196,13 +1240,17 @@ int main(int argc, char** argv) {
     vklDestroyHostCoherentBufferAndItsBackingMemory(cubeVertex_buffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(cubeIndexBuffer);
 
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder_buffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinderVertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinderIndexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder.uniformBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder.vertexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder.indexBuffer);
 
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere_buffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphereVertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphereIndexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere.uniformBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere.vertexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere.indexBuffer);
+
+    vklDestroyHostCoherentBufferAndItsBackingMemory(bezierCylinder.uniformBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(bezierCylinder.vertexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(bezierCylinder.indexBuffer);
 
     vkDestroyDescriptorSetLayout(vk_device, descriptor_set_layout, nullptr);
     vkDestroyDescriptorPool(vk_device, descriptor_pool, nullptr);
@@ -1370,10 +1418,14 @@ void scroll_callback(GLFWwindow* window, double x_offset, double y_offset) {
 
 
 // Subtask 4.1: Cylinder Geometry
-MeshResources createMesh(std::vector<Mesh>& vertices, std::vector<uint32_t>& indices, glm::mat4 view_projection, GLFWwindow* window, VkDescriptorSet descriptor_set, VkDevice vk_device) {
+MeshResources createMesh(std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices, glm::mat4 view_projection, GLFWwindow* window, VkDescriptorSet descriptor_set, VkDevice vk_device) {
+    if (descriptor_set == VK_NULL_HANDLE) {
+        throw std::runtime_error("Unable to create mesh descriptor set");
+    }
+
     MeshResources mesh;
 
-    VkDeviceSize VertexBuffer_size = sizeof(Mesh) * vertices.size();
+    VkDeviceSize VertexBuffer_size = sizeof(glm::vec3) * vertices.size();
     mesh.vertexBuffer = vklCreateHostCoherentBufferWithBackingMemory(VertexBuffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
     vklCopyDataIntoHostCoherentBuffer(mesh.vertexBuffer, vertices.data(), VertexBuffer_size);
 
@@ -1384,7 +1436,7 @@ MeshResources createMesh(std::vector<Mesh>& vertices, std::vector<uint32_t>& ind
     VklGraphicsPipelineConfig pipe_config{};
     VkVertexInputBindingDescription bindings = {};
     bindings.binding = 0;
-    bindings.stride = sizeof(Mesh);
+    bindings.stride = sizeof(glm::vec3);
     bindings.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     pipe_config.vertexInputBuffers.clear();
@@ -1401,7 +1453,7 @@ MeshResources createMesh(std::vector<Mesh>& vertices, std::vector<uint32_t>& ind
     position.location = 0;
     position.binding = 0;
     position.format = VK_FORMAT_R32G32B32_SFLOAT;
-    position.offset = offsetof(Mesh, vertices);
+    position.offset = 0;
     pipe_config.inputAttributeDescriptions.push_back(position);
 
     VkDescriptorSetLayoutBinding descriptor_set_layout_binding{};
@@ -1449,49 +1501,49 @@ MeshResources createMesh(std::vector<Mesh>& vertices, std::vector<uint32_t>& ind
     return mesh;
 }
 
-void buildCylinder(float height, float radius, uint32_t n_segments, std::vector<Mesh>& vertices, std::vector<uint32_t>& indices) {
+void buildCylinder(float h, float r, uint32_t n, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices) {
     // top face
-    vertices.push_back({glm::vec3(0.0f, height * 0.5f, 0.0f)});
-    for (uint32_t n = 0; n < n_segments; ++n) {
-        float angle = float(n) / n_segments * glm::two_pi<float>();
-        float x = radius * glm::cos(angle);
-        float z = radius * glm::sin(angle);
-        vertices.push_back({glm::vec3(x, height * 0.5f, z)});
+    vertices.push_back({glm::vec3(0.0f, h * 0.5f, 0.0f)});
+    for (uint32_t i = 0; i < n; ++i) {
+        float angle = float(i) / n * glm::two_pi<float>();
+        float x = r * glm::cos(angle);
+        float z = r * glm::sin(angle);
+        vertices.push_back({glm::vec3(x, h * 0.5f, z)});
     }
     uint32_t topCenter = 0;
     uint32_t topStart = topCenter + 1;
-    for (uint32_t n = 0; n < n_segments; ++n) {
-        uint32_t curr = topStart + n;
-        uint32_t next = topStart + ((n + 1) % n_segments);
+    for (uint32_t i = 0; i < n; ++i) {
+        uint32_t curr = topStart + i;
+        uint32_t next = topStart + ((i + 1) % n);
         indices.push_back(topCenter);
         indices.push_back(next);
         indices.push_back(curr);
     }
 
     // bottom face
-    vertices.push_back({glm::vec3(0.0f, -height * 0.5f, 0.0f)});
-    for (uint32_t n = 0; n < n_segments; ++n) {
-        float angle = float(n) / n_segments * glm::two_pi<float>();
-        float x = radius * glm::cos(angle);
-        float z = radius * glm::sin(angle);
-        vertices.push_back({glm::vec3(x, -height * 0.5f, z)});
+    vertices.push_back({glm::vec3(0.0f, -h * 0.5f, 0.0f)});
+    for (uint32_t i = 0; i < n; ++i) {
+        float angle = float(i) / n * glm::two_pi<float>();
+        float x = r * glm::cos(angle);
+        float z = r * glm::sin(angle);
+        vertices.push_back({glm::vec3(x, -h * 0.5f, z)});
     }
-    uint32_t bottomCenter = topStart + n_segments;
+    uint32_t bottomCenter = topStart + n;
     uint32_t bottomStart = bottomCenter + 1;
-    for (uint32_t n = 0; n < n_segments; ++n) {
-        uint32_t curr = bottomStart + n;
-        uint32_t next = bottomStart + ((n + 1) % n_segments);
+    for (uint32_t i = 0; i < n; ++i) {
+        uint32_t curr = bottomStart + i;
+        uint32_t next = bottomStart + ((i + 1) % n);
         indices.push_back(bottomCenter);
         indices.push_back(curr);
         indices.push_back(next);
     }
 
     // side faces
-    for (uint32_t n = 0; n < n_segments; ++n) {
-        uint32_t top_curr = topStart + n;
-        uint32_t top_next = topStart + ((n + 1) % n_segments);
-        uint32_t bottom_curr = bottomStart + n;
-        uint32_t bottom_next = bottomStart + ((n + 1) % n_segments);
+    for (uint32_t i = 0; i < n; ++i) {
+        uint32_t top_curr = topStart + i;
+        uint32_t top_next = topStart + ((i + 1) % n);
+        uint32_t bottom_curr = bottomStart + i;
+        uint32_t bottom_next = bottomStart + ((i + 1) % n);
 
         indices.push_back(top_curr);
         indices.push_back(top_next);
@@ -1504,44 +1556,44 @@ void buildCylinder(float height, float radius, uint32_t n_segments, std::vector<
 }
 
 // Subtask 4.2: Sphere Geometry
-void buildSphere(uint32_t longitudinal_segments, uint32_t latitudinal_segments, float radius, std::vector<Mesh>& vertices, std::vector<uint32_t>& indices) {
+void buildSphere(uint32_t n, uint32_t m, float r, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices) {
 
     // north pole
-    vertices.push_back({glm::vec3(0.0f, radius, 0.0f)});
+    vertices.push_back({glm::vec3(0.0f, r, 0.0f)});
 
-    for (uint32_t i = 1; i < latitudinal_segments; ++i) {
-        for (uint32_t j = 0; j < longitudinal_segments; ++j) {
-            float theta = glm::pi<float>() * float (i) / float(latitudinal_segments);
-            float phi = glm::two_pi<float>() * float(j) / float(longitudinal_segments);
-            float x = radius * glm::sin(theta) * glm::cos(phi);
-            float y = radius * glm::cos(theta);
-            float z = radius * glm::sin(theta) * glm::sin(phi);
+    for (uint32_t i = 1; i < m; ++i) {
+        for (uint32_t j = 0; j < n; ++j) {
+            float theta = glm::pi<float>() * float (i) / float(m);
+            float phi = glm::two_pi<float>() * float(j) / float(n);
+            float x = r * glm::sin(theta) * glm::cos(phi);
+            float y = r * glm::cos(theta);
+            float z = r * glm::sin(theta) * glm::sin(phi);
             vertices.push_back({glm::vec3(x, y, z)});
         }
     }
 
     // south pole
-    vertices.push_back({glm::vec3(0.0f, -radius, 0.0f)});
+    vertices.push_back({glm::vec3(0.0f, -r, 0.0f)});
 
     uint32_t topCenter = 0;
     uint32_t RingStart = topCenter + 1;
     // indices: first ring
-    for (uint32_t j = 0; j < longitudinal_segments; ++j) {
+    for (uint32_t j = 0; j < n; ++j) {
         uint32_t curr = RingStart + j;
-        uint32_t next = RingStart + ((j + 1) % longitudinal_segments);
+        uint32_t next = RingStart + ((j + 1) % n);
         indices.push_back(topCenter);
         indices.push_back(next);
         indices.push_back(curr);
     }
     // indices: mid quads
-    for (uint32_t i = 0; i < latitudinal_segments - 2; ++i) {
-        RingStart = i * longitudinal_segments + 1;
-        uint32_t nextRingStart = RingStart + longitudinal_segments;
-        for (uint32_t j = 0; j < longitudinal_segments; ++j) {
+    for (uint32_t i = 0; i < m - 2; ++i) {
+        RingStart = i * n + 1;
+        uint32_t nextRingStart = RingStart + n;
+        for (uint32_t j = 0; j < n; ++j) {
             uint32_t curr = RingStart + j;
-            uint32_t next = RingStart + ((j + 1) % longitudinal_segments);
+            uint32_t next = RingStart + ((j + 1) % n);
             uint32_t curr_down = nextRingStart + j;
-            uint32_t next_down = nextRingStart + ((j + 1) % longitudinal_segments);
+            uint32_t next_down = nextRingStart + ((j + 1) % n);
 
             indices.push_back(curr);
             indices.push_back(next);
@@ -1554,11 +1606,127 @@ void buildSphere(uint32_t longitudinal_segments, uint32_t latitudinal_segments, 
     }
 
     // indices: last ring
-    RingStart = longitudinal_segments * (latitudinal_segments - 2) + 1;
-    uint32_t bottomCenter = RingStart + longitudinal_segments;
-    for (uint32_t j = 0; j < longitudinal_segments; ++j) {
+    RingStart = n * (m - 2) + 1;
+    uint32_t bottomCenter = RingStart + n;
+    for (uint32_t j = 0; j < n; ++j) {
         uint32_t curr = RingStart + j;
-        uint32_t next = RingStart + ((j + 1) % longitudinal_segments);
+        uint32_t next = RingStart + ((j + 1) % n);
+        indices.push_back(bottomCenter);
+        indices.push_back(curr);
+        indices.push_back(next);
+    }
+}
+
+// Subtask 4.3: Bézier Cylinder Geometry
+
+// de Casteljau algorithm
+glm::vec3 bezierPoint(std::vector<glm::vec3>& vertices, float t) {
+    std::vector<glm::vec3> vertices_temp = vertices;
+    uint32_t size = int(vertices.size());
+    for (uint32_t i = 1; i < size; ++i) {
+        for (uint32_t j = 0; j < size - i; ++j) {
+            vertices_temp[j] = (1.0f - t) * vertices_temp[j] + t * vertices_temp[j + 1];
+        }
+    }
+    return vertices_temp[0];
+}
+
+glm::vec3 derivativeBezierPoint(std::vector<glm::vec3>& vertices, float t) {
+    std::vector<glm::vec3> vertices_temp;
+    uint32_t degree = uint32_t(vertices.size() - 1);
+    for (uint32_t i = 0; i < degree; ++i) {
+        vertices_temp.push_back(float(degree) * (vertices[i + 1] - vertices[i]));
+    }
+    return bezierPoint(vertices_temp, t);
+}
+
+void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>& controlPoints, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices) {
+    if (controlPoints.size() < 2) {
+        throw std::runtime_error("Need at least 2 control points");
+    }
+    uint32_t n_circles = s + 1;
+
+    // new axes for every circle
+    std::vector<glm::vec3> centers(n_circles);
+    std::vector<glm::vec3> tangents(n_circles);
+    for (uint32_t i = 0; i < n_circles; ++i) {
+        float t = float(i) / float(s);
+        centers[i] = bezierPoint(controlPoints, t);
+        tangents[i] = glm::normalize(derivativeBezierPoint(controlPoints, t));
+    }
+
+    std::vector<glm::vec3> normals(n_circles);
+    std::vector<glm::vec3> binormals(n_circles);
+    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+    if (glm::abs(glm::dot(up, tangents[0])) > 0.999f) {
+        up = glm::vec3(1.0f, 0.0f, 0.0f);
+    }
+    normals[0] = glm::normalize(glm::cross(tangents[0],up));
+    binormals[0] = glm::normalize(glm::cross(tangents[0], normals[0]));
+
+    // parallel transport to compute the normal and binormal for each circle
+    for (uint32_t i = 1; i < n_circles; ++i) {
+        glm::vec3 axis = glm::cross(tangents[i - 1], tangents[i]);
+        if (glm::length(axis) < 1e-8f) {
+            normals[i] = normals[i - 1];
+            binormals[i] = binormals[i - 1];
+        }
+        else {
+            axis = glm::normalize(axis);
+            float cos_angle = glm::clamp(glm::dot(tangents[i - 1], tangents[i]), -1.0f, 1.0f);
+            float angle = acosf(cos_angle);
+            normals[i] = glm::rotate(normals[i - 1], angle, axis);
+            binormals[i] = glm::normalize(glm::cross(tangents[i], normals[i]));
+        }
+    }
+
+    // vertices
+    for (uint32_t i = 0; i < n_circles; ++i) {
+        for (uint32_t j = 0; j < n; ++j) {
+            float theta = glm::two_pi<float>() * float(j) / float(n);
+            glm::vec3 local_dir = glm::cos(theta) * normals[i] + glm::sin(theta) * binormals[i];
+            glm::vec3 position = centers[i] + r * local_dir;
+            vertices.push_back(position);
+        }
+    }
+    vertices.push_back(centers[0]);
+    vertices.push_back(centers[s]);
+
+    uint32_t topCenter = n_circles * n;
+    uint32_t bottomCenter = topCenter + 1;
+    uint32_t bottomOffset = s * n;
+
+    // indices: side faces
+    for (uint32_t i = 0; i < s; ++i) {
+        for (uint32_t j = 0; j < n; ++j) {
+            uint32_t top_curr = i * n + j;
+            uint32_t top_next = i * n + ((j + 1) % n);
+            uint32_t bottom_curr = (i + 1) * n + j;
+            uint32_t bottom_next = (i + 1) * n + ((j + 1) % n);
+
+            indices.push_back(top_curr);
+            indices.push_back(bottom_next);
+            indices.push_back(bottom_curr);
+
+            indices.push_back(top_curr);
+            indices.push_back(top_next);
+            indices.push_back(bottom_next);
+        }
+    }
+
+    // indices: first circle
+    for (uint32_t j = 0; j < n; ++j) {
+        uint32_t curr = j;
+        uint32_t next = (j + 1) % n;
+        indices.push_back(topCenter);
+        indices.push_back(next);
+        indices.push_back(curr);
+    }
+
+    // indices: last circle
+    for (uint32_t j = 0; j < n; ++j) {
+        uint32_t curr = bottomOffset + j;
+        uint32_t next = bottomOffset + (j + 1) % n;
         indices.push_back(bottomCenter);
         indices.push_back(curr);
         indices.push_back(next);
