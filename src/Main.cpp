@@ -262,6 +262,11 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
 /* --------------------------------------------- */
 
 int main(int argc, char** argv) {
+    std::cout << "argc = " << argc << std::endl;
+    for (int i = 0; i < argc; ++i) {
+        std::cout << "argv[" << i << "] = " << argv[i] << std::endl;
+    }
+
     VKL_LOG(WELCOME_MSG);
 
     CMDLineArgs cmdline_args;
