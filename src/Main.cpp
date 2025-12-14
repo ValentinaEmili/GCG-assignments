@@ -1079,8 +1079,8 @@ int main(int argc, char** argv) {
     MeshResources torus = createMesh(torusVertices, torusIndices, view_projection, window, descriptor_set_torus, vk_device);
 
     glm::mat4 model_torus = glm::mat4(1.0f);
-    model_torus = glm::rotate(model_torus, glm::radians(45.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     model_torus = glm::scale(model_torus, glm::vec3(1.0f, 1.5f, 1.0f));
+    model_torus = glm::rotate(model_torus, glm::radians(45.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     torus.ubo.view_projection = view_projection * model_torus;
     torus.ubo.color = glm::vec4(0.38f, 0.67f, 0.84f, 1.0f);
 
