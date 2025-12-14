@@ -257,6 +257,9 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<glm::vec3>& vertic
 glm::vec3 bezierPoint(std::vector<glm::vec3>& vertices, float t);
 glm::vec3 derivativeBezierPoint(std::vector<glm::vec3>& vertices, float t);
 void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>& controlPoints, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices);
+
+// Subtask 4.5: Torus
+void buildTorus(float R, float r, uint32_t s, uint32_t n, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices);
 /* --------------------------------------------- */
 // Main
 /* --------------------------------------------- */
@@ -1059,6 +1062,28 @@ int main(int argc, char** argv) {
     model_bezierCylinder = glm::translate(model_bezierCylinder, glm::vec3(-0.6f, 0.0f, 0.0f));
     bezierCylinder.ubo.view_projection = view_projection * model_bezierCylinder;
 
+    // Subtask 4.5: Torus
+    std::vector<glm::vec3> torusVertices;
+    std::vector<uint32_t> torusIndices;
+    buildTorus(1.1f, 0.1f, 32, 8, torusVertices, torusIndices);
+
+    VkDescriptorSet descriptor_set_torus{};
+    VkDescriptorSetAllocateInfo alloc_info_torus{};
+    alloc_info_torus.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info_torus.descriptorPool = descriptor_pool;
+    alloc_info_torus.descriptorSetCount = 1;
+    alloc_info_torus.pSetLayouts = &descriptor_set_layout;
+    res = vkAllocateDescriptorSets(vk_device, &alloc_info_torus, &descriptor_set_torus);
+    VKL_CHECK_VULKAN_ERROR(res);
+
+    MeshResources torus = createMesh(torusVertices, torusIndices, view_projection, window, descriptor_set_torus, vk_device);
+
+    glm::mat4 model_torus = glm::mat4(1.0f);
+    model_torus = glm::rotate(model_torus, glm::radians(45.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    model_torus = glm::scale(model_torus, glm::vec3(1.0f, 1.5f, 1.0f));
+    torus.ubo.view_projection = view_projection * model_torus;
+    torus.ubo.color = glm::vec4(0.38f, 0.67f, 0.84f, 1.0f);
+
     /* --------------------------------------------- */
     // Subtask 1.10: Set-up the Render Loop
     while (!glfwWindowShouldClose(window)) {
@@ -1179,9 +1204,7 @@ int main(int argc, char** argv) {
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_pipeline_layout, 0, 1, &descriptor_set_sphere, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(sphereIndices.size()), 1, 0, 0, 0);
 
-
         // Subtask 4.3: Bézier Cylinder
-
         bezierCylinder.ubo.view_projection = view_projection * model_bezierCylinder;
         vklCopyDataIntoHostCoherentBuffer(bezierCylinder.uniformBuffer, &bezierCylinder.ubo, bezierCylinder.uniformBufferSize);
 
@@ -1193,6 +1216,19 @@ int main(int argc, char** argv) {
         vkCmdBindIndexBuffer(cmdBuffer, bezierCylinder.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bezierCylinder_pipeline_layout, 0, 1, &descriptor_set_bezierCylinder, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(bezierCylinderIndices.size()), 1, 0, 0, 0);
+
+        // Subtask 4.5: Torus
+        torus.ubo.view_projection = view_projection * model_torus;
+        vklCopyDataIntoHostCoherentBuffer(torus.uniformBuffer, &torus.ubo, torus.uniformBufferSize);
+
+        VkPipeline curr_torus_pipeline = torus.pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipelineLayout torus_pipeline_layout = vklGetLayoutForPipeline(curr_torus_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_torus_pipeline);
+
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &torus.vertexBuffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, torus.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, torus_pipeline_layout, 0, 1, &descriptor_set_torus, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(torusIndices.size()), 1, 0, 0, 0);
 
         vklEndRecordingCommands();
         vklPresentCurrentSwapchainImage();
@@ -1225,6 +1261,7 @@ int main(int argc, char** argv) {
         vklDestroyGraphicsPipeline(cylinder.pipelines[i]);
         vklDestroyGraphicsPipeline(sphere.pipelines[i]);
         vklDestroyGraphicsPipeline(bezierCylinder.pipelines[i]);
+        vklDestroyGraphicsPipeline(torus.pipelines[i]);
     }
     vklDestroyHostCoherentBufferAndItsBackingMemory(buffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(buffer1);
@@ -1251,6 +1288,10 @@ int main(int argc, char** argv) {
     vklDestroyHostCoherentBufferAndItsBackingMemory(bezierCylinder.uniformBuffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(bezierCylinder.vertexBuffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(bezierCylinder.indexBuffer);
+
+    vklDestroyHostCoherentBufferAndItsBackingMemory(torus.uniformBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(torus.vertexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(torus.indexBuffer);
 
     vkDestroyDescriptorSetLayout(vk_device, descriptor_set_layout, nullptr);
     vkDestroyDescriptorPool(vk_device, descriptor_pool, nullptr);
@@ -1730,5 +1771,36 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
         indices.push_back(bottomCenter);
         indices.push_back(curr);
         indices.push_back(next);
+    }
+}
+
+void buildTorus(float R, float r, uint32_t s, uint32_t n, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices) {
+    for (uint32_t j = 0; j <= s; ++j) {
+        for (uint32_t i = 0; i < n; ++i) {
+            // vertices
+            float theta = glm::two_pi<float>() * float (i) / float(n);
+            float phi = glm::two_pi<float>() * float(j) / float(s);
+            float x = (R + r * glm::sin(theta)) * glm::cos(phi);
+            float y = (R + r * glm::sin(theta)) * glm::sin(phi);
+            float z = r * glm::cos(theta);
+            vertices.push_back({glm::vec3(x, y, z)});
+        }
+    }
+    for (uint32_t j = 0; j < s; ++j) {
+        for (uint32_t i = 0; i < n; ++i) {
+            // indices
+            uint32_t a = j * n + i;
+            uint32_t b = j * n + (i + 1) % n;
+            uint32_t c = (j + 1) * n + i;
+            uint32_t d = (j + 1) * n + (i + 1) % n;
+
+            indices.push_back(a);
+            indices.push_back(c);
+            indices.push_back(d);
+
+            indices.push_back(a);
+            indices.push_back(d);
+            indices.push_back(b);
+        }
     }
 }
