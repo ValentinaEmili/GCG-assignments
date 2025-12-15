@@ -109,8 +109,8 @@ struct UniformBufferObject {
 float zoom = 5.0f; // initial radium
 float yaw = 0.0f;
 float pitch = 0.0f;
-float max_pitch = glm::radians(89.0f);
-float min_pitch = glm::radians(-89.0f);
+float max_pitch = glm::radians(89.999f);
+float min_pitch = glm::radians(-89.999f);
 float last_x = 0.0f;
 float last_y = 0.0f;
 bool first_mouse = true;
@@ -284,8 +284,8 @@ int main(int argc, char** argv) {
         init_renderer_filepath = cmdline_args.init_renderer_filepath;
     }
     INIReader renderer_reader(init_renderer_filepath);
-    bool as_wireframe = renderer_reader.GetBoolean("renderer", "wireframe", false);
-    bool with_backface_culling = renderer_reader.GetBoolean("renderer", "backface_culling", false);
+    is_wireframe = renderer_reader.GetBoolean("renderer", "wireframe", false);
+    cull_mode_idx = renderer_reader.GetBoolean("renderer", "backface_culling", false) ? 1 : 0;
 
     /* --------------------------------------------- */
     // Subtask 1.2: Create a Window with GLFW
@@ -727,8 +727,10 @@ int main(int argc, char** argv) {
     float far = static_cast<float>(camera_reader.GetReal("camera", "far", 100.0f));
     float aspect_ratio = static_cast<float>(width) / static_cast<float>(height);
 
-    yaw = glm::radians(static_cast<float>(camera_reader.GetReal("camera", "yaw", 0.0f)));
-    pitch = glm::radians(static_cast<float>(camera_reader.GetReal("camera", "pitch", 0.0f)));
+    yaw = -static_cast<float>(camera_reader.GetReal("camera", "yaw", 0.0f));
+    pitch = static_cast<float>(camera_reader.GetReal("camera", "pitch", 0.0f));
+    if (pitch > max_pitch) pitch = max_pitch;
+    if (pitch < min_pitch) pitch = min_pitch;
     zoom = 5.0f;
 
     glm::mat4 projection = gcgCreatePerspectiveProjectionMatrix(fov, aspect_ratio, near, far);
