@@ -730,8 +730,8 @@ int main(int argc, char** argv) {
     float far = static_cast<float>(camera_reader.GetReal("camera", "far", 100.0f));
     float aspect_ratio = static_cast<float>(width) / static_cast<float>(height);
 
-    yaw = glm::radians(static_cast<float>(camera_reader.GetReal("camera", "yaw", 0.0f)));
-    pitch = glm::radians(static_cast<float>(camera_reader.GetReal("camera", "pitch", 0.0f)));
+    yaw = -static_cast<float>(camera_reader.GetReal("camera", "yaw", 0.0f));
+    pitch = static_cast<float>(camera_reader.GetReal("camera", "pitch", 0.0f));
     zoom = 5.0f;
 
     glm::mat4 projection = gcgCreatePerspectiveProjectionMatrix(fov, aspect_ratio, near, far);
