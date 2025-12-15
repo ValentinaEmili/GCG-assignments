@@ -109,8 +109,8 @@ struct UniformBufferObject {
 float zoom = 5.0f; // initial radium
 float yaw = 0.0f;
 float pitch = 0.0f;
-float max_pitch = glm::radians(89.0f);
-float min_pitch = glm::radians(-89.0f);
+float max_pitch = glm::radians(89.999f);
+float min_pitch = glm::radians(-89.999f);
 float last_x = 0.0f;
 float last_y = 0.0f;
 bool first_mouse = true;
@@ -732,6 +732,8 @@ int main(int argc, char** argv) {
 
     yaw = -static_cast<float>(camera_reader.GetReal("camera", "yaw", 0.0f));
     pitch = static_cast<float>(camera_reader.GetReal("camera", "pitch", 0.0f));
+    if (pitch > max_pitch) pitch = max_pitch;
+    if (pitch < min_pitch) pitch = min_pitch;
     zoom = 5.0f;
 
     glm::mat4 projection = gcgCreatePerspectiveProjectionMatrix(fov, aspect_ratio, near, far);
