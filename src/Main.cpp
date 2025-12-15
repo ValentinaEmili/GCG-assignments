@@ -287,8 +287,8 @@ int main(int argc, char** argv) {
         init_renderer_filepath = cmdline_args.init_renderer_filepath;
     }
     INIReader renderer_reader(init_renderer_filepath);
-    bool as_wireframe = renderer_reader.GetBoolean("renderer", "wireframe", false);
-    bool with_backface_culling = renderer_reader.GetBoolean("renderer", "backface_culling", false);
+    is_wireframe = renderer_reader.GetBoolean("renderer", "wireframe", false);
+    cull_mode_idx = renderer_reader.GetBoolean("renderer", "backface_culling", false) ? 1 : 0;
 
     /* --------------------------------------------- */
     // Subtask 1.2: Create a Window with GLFW
