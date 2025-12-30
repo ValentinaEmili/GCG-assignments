@@ -1,10 +1,18 @@
 #version 450
 layout(location = 0) in vec3 inPosition;
+layout(location = 1) in vec3 inNormal;
+
+layout(location = 1) out vec3 outNormal;
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4 color;
-    mat4 view_projection;
-} ubo;
+    mat4 model;
+    mat4 view;
+    mat4 projection;
+    ivec4 userInput;
+    vec4 camera_pos;
+} UBO;
 
 void main() {
-    gl_Position = ubo.view_projection * vec4(inPosition, 1.0);
+    outNormal = inNormal;
+    gl_Position = UBO.projection * UBO.view * vec4(inPosition, 1.0);
 }

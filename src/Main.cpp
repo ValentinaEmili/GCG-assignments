@@ -84,6 +84,8 @@ void errorCallbackFromGlfw(int error, const char* description) { std::cout << "G
 
 bool is_wireframe = false;
 int cull_mode_idx = 0; // 0: NONE; 1: BACK
+bool draw_normals = false;
+bool draw_fresnel = true;
 
 void keyCallbackFromGlfw(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
@@ -98,11 +100,42 @@ void keyCallbackFromGlfw(GLFWwindow* window, int key, int scancode, int action, 
     if (key == GLFW_KEY_F2 && action == GLFW_PRESS) {
         cull_mode_idx = (cull_mode_idx + 1) % 2;
     }
+    if (key == GLFW_KEY_N && action == GLFW_PRESS) {
+        draw_normals = !draw_normals;
+    }
+
+    if (key == GLFW_KEY_F && action == GLFW_PRESS) {
+        draw_fresnel = !draw_fresnel;
+    }
 }
 
 struct UniformBufferObject {
     alignas(16) glm::vec4 color;
-    alignas(16) glm::mat4 view_projection;
+    alignas(16) glm::mat4 model;
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 projection;
+    alignas(16) glm::ivec4 userInput;
+    alignas(16) glm::vec4 camera_pos;
+    alignas(16) glm::vec4 material;
+};
+
+// Subtask 5.8: Uniform Buffers for Lights
+struct DirectionalLightUBO {
+    alignas(16) glm::vec4 color;
+    alignas(16) glm::vec4 direction;
+};
+
+struct PointLightUBO {
+    alignas(16) glm::vec4 color;
+    alignas(16) glm::vec4 position;
+    alignas(16) glm::vec4 attenuation;
+};
+
+// Subtask 5.9 - 5.10: Phong Illumination with Gouraud/Phong Shading
+enum class ShadingMode {
+    Multicolor,
+    Gouraud,
+    Phong,
 };
 
 // Subtask 2.6: Orbit Camera
@@ -111,8 +144,8 @@ float yaw = 0.0f;
 float pitch = 0.0f;
 float max_pitch = glm::radians(89.999f);
 float min_pitch = glm::radians(-89.999f);
-float last_x = 0.0f;
-float last_y = 0.0f;
+double last_x = 0.0f;
+double last_y = 0.0f;
 bool first_mouse = true;
 
 glm::vec3 camera_pos;
@@ -127,48 +160,44 @@ float cube_width = 0.34f;
 float cube_depth = 0.34f;
 float cube_height = 0.34f;
 
-// Subtask 3.8: Test Scene
-//float cube_width = 2.0f;
-//float cube_height = 1.3f;
-//float cube_depth = 1.3f;
-
-struct cubeVertex {
+// Subtask 5.1: Cube geometry with normal vectors
+struct Vertex {
     glm::vec3 position;
+    glm::vec3 normal;
     glm::vec3 color;
 };
 
-std::vector<cubeVertex> cubeVertices_temp = {
+std::vector<Vertex> cube_vertices = {
     // front
-    {{-cube_width / 2, -cube_height / 2, cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // left-bottom
-    {{cube_width / 2, -cube_height / 2, cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // right-bottom
-    {{cube_width / 2, cube_height / 2, cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // right-top
-    {{-cube_width / 2, cube_height / 2, cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // left-top
-
+    {{-cube_width / 2, -cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2, -cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
     // back
-    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // left-bottom
-    {{cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // right-bottom
-    {{cube_width / 2, cube_height / 2, -cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // right-top
-    {{-cube_width / 2, cube_height / 2, -cube_depth / 2}, {0.75f, 0.25f, 0.01f}}, // left-top
-};
-
-// Subtask 3.5: Cube Geometry
-
-//float cube_width = 1.0f;
-//float cube_height = 1.0f;
-//float cube_depth = 1.0f;
-
-std::vector<glm::vec3> cube_vertices_temp = {
-    // front
-    {-cube_width / 2, -cube_height / 2, cube_depth / 2}, // left-bottom
-    {cube_width / 2, -cube_height / 2, cube_depth / 2}, // right-bottom
-    {cube_width / 2, cube_height / 2, cube_depth / 2}, // right-top
-    {-cube_width / 2, cube_height / 2, cube_depth / 2}, // left-top
-
-    // back
-    {-cube_width / 2, -cube_height / 2, -cube_depth / 2}, // left-bottom
-    {cube_width / 2, -cube_height / 2, -cube_depth / 2}, // right-bottom
-    {cube_width / 2, cube_height / 2, -cube_depth / 2}, // right-top
-    {-cube_width / 2, cube_height / 2, -cube_depth / 2}, // left-top
+    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
+    // left
+    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2, -cube_height / 2,  cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    // right
+    {{ cube_width / 2, -cube_height / 2, -cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2, -cube_height / 2,  cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    // bottom
+    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2, -cube_height / 2,  cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2, -cube_height / 2,  cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    // top
+    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
 };
 
 std::vector<uint32_t> cube_indices = {
@@ -177,67 +206,62 @@ std::vector<uint32_t> cube_indices = {
     // back
     4, 6, 5, 4, 7, 6,
     // left
-    0, 3, 7, 0, 7, 4,
+    8, 9, 10, 8, 10, 11,
     // right
-    1, 6, 2, 1, 5, 6,
-    // top
-    3, 2, 6, 3, 6, 7,
+    12, 14, 13, 12, 15, 14,
     // bottom
-    0, 5, 1, 0, 4, 5
+    16, 17, 18, 16, 18, 19,
+    // top
+    20, 22, 21, 20, 23, 22
 };
 
-// Subtask 3.6 - 3.7: Cornell Box
-struct CornellVertex {
-    glm::vec3 position;
-    glm::vec3 color;
-};
-
+// Subtask 3.6 - 3.7 - 5.2: Cornell Box with normal vectors
 float cornell_width = 3.0f;
 float cornell_height = 3.0f;
 float cornell_depth = 3.0f;
 
-std::vector<CornellVertex> cornell_vertices_temp = {
+std::vector<Vertex> cornell_vertices = {
     // back
-    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.76, 0.74f, 0.68f)},
-    {{-cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.76, 0.74f, 0.68f)},
-    {{cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.76, 0.74f, 0.68f)},
-    {{cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.76, 0.74f, 0.68f)},
+    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}},
+    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}},
+    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}},
+    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}},
     // left
-    {{-cornell_width / 2, -cornell_height / 2, cornell_depth / 2}, glm::vec3(0.49f, 0.06f, 0.22f)},
-    {{-cornell_width / 2, cornell_height / 2, cornell_depth / 2}, glm::vec3(0.49f, 0.06f, 0.22f)},
-    {{-cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.49f, 0.06f, 0.22f)},
-    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.49f, 0.06f, 0.22f)},
+    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}},
+    {{-cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}},
+    {{-cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}},
+    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}},
     // right
-    {{cornell_width / 2, -cornell_height / 2, cornell_depth / 2}, glm::vec3(0.0f, 0.13f, 0.31f)},
-    {{cornell_width / 2, cornell_height / 2, cornell_depth / 2}, glm::vec3(0.0f, 0.13f, 0.31f)},
-    {{cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.0f, 0.13f, 0.31f)},
-    {{cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.0f, 0.13f, 0.31f)},
-    // top
-    {{-cornell_width / 2, cornell_height / 2, cornell_depth / 2}, glm::vec3(0.96f, 0.93f, 0.85f)},
-    {{-cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.96f, 0.93f, 0.85f)},
-    {{cornell_width / 2, cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.96f, 0.93f, 0.85f)},
-    {{cornell_width / 2, cornell_height / 2, cornell_depth / 2}, glm::vec3(0.96f, 0.93f, 0.85f)},
+    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}},
+    {{ cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}},
+    {{ cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}},
+    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}},
     // bottom
-    {{-cornell_width / 2, -cornell_height / 2, cornell_depth / 2}, glm::vec3(0.64f, 0.64f, 0.64f)},
-    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.64f, 0.64f, 0.64f)},
-    {{cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, glm::vec3(0.64f, 0.64f, 0.64f)},
-    {{cornell_width / 2, -cornell_height / 2, cornell_depth / 2}, glm::vec3(0.64f, 0.64f, 0.64f)},
+    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}},
+    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}},
+    {{ cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}},
+    {{-cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}},
+    // top
+    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}},
+    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}},
+    {{ cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}},
+    {{-cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}},
 };
 
 std::vector<uint32_t> cornell_indices = {
     // back
-    0, 3, 1, 3, 2, 1,
+    0, 1, 2, 0, 2, 3,
     // left
-    4, 7, 5, 7, 6, 5,
+    4, 6, 5, 4, 7, 6,
     // right
     8, 9, 10, 8, 10, 11,
-    // top
-    12, 13, 14, 12, 14, 15,
     // bottom
-    16, 18, 17, 16, 19, 18
+   13, 12, 15, 13, 15, 14,
+    // top
+   16, 17, 18, 16, 18, 19
 };
 
-// Subtask 4.1: Cylinder Geometry
+// Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
 struct MeshResources {
     UniformBufferObject ubo;
     VkBuffer uniformBuffer;
@@ -246,17 +270,52 @@ struct MeshResources {
     VkBuffer vertexBuffer;
     VkBuffer indexBuffer;
 };
-MeshResources createMesh(std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices, glm::mat4 view_projection, GLFWwindow* window, VkDescriptorSet descriptor_set, VkDevice vk_device);
 
-void buildCylinder(float h, float r, uint32_t n, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices);
+MeshResources SetupMesh(
+    std::vector<Vertex>& vertices,
+    std::vector<uint32_t>& indices,
+    glm::mat4 view,
+    glm::mat4 projection,
+    GLFWwindow* window,
+    VkDescriptorPool descriptor_pool,
+    VkDescriptorSetLayout descriptor_set_layout,
+    VkDescriptorSet &descriptor_set,
+    std::array<VkDescriptorSetLayoutBinding, 3>& descriptor_set_layout_binding,
+    VkBuffer dirLightBuffer,
+    VkBuffer pointLightBuffer,
+    ShadingMode shadingMode,
+    VkDevice vk_device,
+    glm::vec3 translation,
+    glm::vec3 rotation_axis,
+    glm::vec4 color,
+    glm::vec4 material,
+    float rotation_degrees=0.0f,
+    bool multicolor=false,
+    bool translate=true
+    );
 
-// Subtask 4.2: Sphere Geometry
-void buildSphere(uint32_t n, uint32_t m, float r, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices);
+MeshResources createMesh(
+    std::vector<Vertex>& vertices,
+    std::vector<uint32_t>& indices,
+    glm::mat4 view,
+    glm::mat4 projection,
+    GLFWwindow* window,
+    VkDescriptorSet &descriptor_set,
+    std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding,
+    VkBuffer dirLightBuffer,
+    VkBuffer pointLightBuffer,
+    ShadingMode shadingMode,
+    VkDevice vk_device);
 
-// Subtask 4.3: Bézier Cylinder Geometry
+void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+
+// Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
+void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+
+// Subtask 4.3 - 5.5: Bézier Cylinder Geometry with normal vectors
 glm::vec3 bezierPoint(std::vector<glm::vec3>& vertices, float t);
 glm::vec3 derivativeBezierPoint(std::vector<glm::vec3>& vertices, float t);
-void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>& controlPoints, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices);
+void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>& controlPoints, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 /* --------------------------------------------- */
 // Main
 /* --------------------------------------------- */
@@ -278,14 +337,18 @@ int main(int argc, char** argv) {
     // Install a callback function, which gets invoked whenever a GLFW error occurred.
     glfwSetErrorCallback(errorCallbackFromGlfw);
 
-    // Subtask 3.3: Interaction
+    // Subtask 3.3 - 5.7: Interaction
     std::string init_renderer_filepath = "assets/settings/renderer_standard.ini";
     if (cmdline_args.init_renderer) {
         init_renderer_filepath = cmdline_args.init_renderer_filepath;
     }
+
     INIReader renderer_reader(init_renderer_filepath);
     is_wireframe = renderer_reader.GetBoolean("renderer", "wireframe", false);
     cull_mode_idx = renderer_reader.GetBoolean("renderer", "backface_culling", false) ? 1 : 0;
+    draw_normals = renderer_reader.GetBoolean("renderer", "normals", false);
+    draw_fresnel = renderer_reader.GetBoolean("renderer", "fresnel", true);
+
 
     /* --------------------------------------------- */
     // Subtask 1.2: Create a Window with GLFW
@@ -588,7 +651,6 @@ int main(int argc, char** argv) {
         swapchain_config.swapchainImages[i].depthAttachmentImageDetails.imageUsage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
         swapchain_config.swapchainImages[i].depthAttachmentImageDetails.clearValue = depth_clear_value;
     }
-    //vklInitFramework(vk_instance, vk_surface, vk_physical_device, vk_device, vk_queue, swapchain_config);
     // end subtask 2.7
 
     // Init the framework:
@@ -597,69 +659,17 @@ int main(int argc, char** argv) {
     }
     VKL_LOG("Subtask 1.9 done.");
 
-    // Subtask 2.1: Create a Custom Graphics Pipeline
-    VklGraphicsPipelineConfig graphics_pipe_config{};
-    graphics_pipe_config.vertexShaderPath = "shader.vert";
-    graphics_pipe_config.fragmentShaderPath = "shader.frag";
-
-    VkVertexInputBindingDescription vertexInputBindings{};
-    vertexInputBindings.binding = 0;
-    vertexInputBindings.stride = 3 * sizeof(float);
-    vertexInputBindings.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    graphics_pipe_config.vertexInputBuffers.push_back(vertexInputBindings);
-
-    VkVertexInputAttributeDescription vertex_input_attribute_description{};
-    vertex_input_attribute_description.location = 0;
-    vertex_input_attribute_description.binding = 0;
-    vertex_input_attribute_description.format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertex_input_attribute_description.offset = 0;
-    graphics_pipe_config.inputAttributeDescriptions.push_back(vertex_input_attribute_description);
-
-    graphics_pipe_config.polygonDrawMode = VK_POLYGON_MODE_FILL;
-    graphics_pipe_config.triangleCullingMode = VK_CULL_MODE_NONE;
-
-    std::string vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/shader.vert");
-    std::string fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/shader.frag");
-
-    graphics_pipe_config.vertexShaderPath = vertex_shader_path.c_str();
-    graphics_pipe_config.fragmentShaderPath = fragment_shader_path.c_str();
-
     // Subtask 2.2: Create a Uniform Buffer
-    VkDescriptorSetLayoutBinding descriptor_set_layout_binding{};
-    descriptor_set_layout_binding.binding = 0;
-    descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptor_set_layout_binding.descriptorCount = 1;
-    descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    descriptor_set_layout_binding.pImmutableSamplers = nullptr;
-    graphics_pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding);
-
-    VkPipeline pipeline = vklCreateGraphicsPipeline(graphics_pipe_config);
-    // Subtask 3.3: Interaction
-    VkPipeline pipelines[4];
-    for (uint32_t wire = 0; wire < 2; wire++) {
-        for (uint32_t cull = 0; cull < 2; cull++) {
-            VklGraphicsPipelineConfig pipe_config = graphics_pipe_config;
-            pipe_config.polygonDrawMode = wire ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
-            pipe_config.triangleCullingMode = (cull == 0) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
-            pipelines[wire * 2 + cull] = vklCreateGraphicsPipeline(pipe_config);
-        }
+    std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding{};
+    for (uint32_t i = 0; i < 3; i++) {
+        descriptor_set_layout_binding[i].binding = i;
+        descriptor_set_layout_binding[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptor_set_layout_binding[i].descriptorCount = 1;
+        descriptor_set_layout_binding[i].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        descriptor_set_layout_binding[i].pImmutableSamplers = nullptr;
     }
 
-    UniformBufferObject ubo{};
-    ubo.color[0] = 1.0f;
-    ubo.color[1] = 0.5f;
-    ubo.color[2] = 0.0f;
-    ubo.color[3] = 1.0f;
-
-    VkDeviceSize buffer_size = sizeof(ubo);
-    VkBuffer buffer = vklCreateHostCoherentBufferWithBackingMemory(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-    vklCopyDataIntoHostCoherentBuffer(buffer, &ubo, buffer_size);
-    vklEnablePipelineHotReloading(window, GLFW_KEY_F5);
-
     // Subtask 2.3: Allocate and Write Descriptors
-    VkDescriptorPool descriptor_pool;
-
     VkDescriptorPoolSize pool_size;
     pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     pool_size.descriptorCount = 8 * 16;
@@ -672,49 +682,34 @@ int main(int argc, char** argv) {
     descriptor_pool_create_info.poolSizeCount = 1;
     descriptor_pool_create_info.pPoolSizes = &pool_size;
 
+    VkDescriptorPool descriptor_pool;
     VkResult des_pool_result = vkCreateDescriptorPool(vk_device, &descriptor_pool_create_info, nullptr, &descriptor_pool);
     VKL_CHECK_VULKAN_ERROR(des_pool_result);
 
-    VkDescriptorSetLayout descriptor_set_layout;
     VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info{};
     descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptor_set_layout_create_info.pNext = nullptr;
     descriptor_set_layout_create_info.flags = 0;
-    descriptor_set_layout_create_info.bindingCount = 1;
-    descriptor_set_layout_create_info.pBindings = &descriptor_set_layout_binding;
+    descriptor_set_layout_create_info.bindingCount = static_cast<uint32_t>(descriptor_set_layout_binding.size());
+    descriptor_set_layout_create_info.pBindings = descriptor_set_layout_binding.data();
 
+    VkDescriptorSetLayout descriptor_set_layout;
     VkResult des_set_layout_result = vkCreateDescriptorSetLayout(vk_device, &descriptor_set_layout_create_info, nullptr, &descriptor_set_layout);
     VKL_CHECK_VULKAN_ERROR(des_set_layout_result);
 
-    VkDescriptorSet descriptor_set;
-    VkDescriptorSetAllocateInfo descriptor_set_allocate_info{};
-    descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptor_set_allocate_info.pNext = nullptr;
-    descriptor_set_allocate_info.descriptorPool = descriptor_pool;
-    descriptor_set_allocate_info.descriptorSetCount = 1;
-    descriptor_set_allocate_info.pSetLayouts = &descriptor_set_layout;
+    // Subtask 5.8: Uniform Buffers for Lights
+    DirectionalLightUBO dirLightUBO{};
+    dirLightUBO.color = glm::vec4(0.85f, 0.85f, 0.85f, 1.0f);
+    dirLightUBO.direction = glm::vec4(glm::normalize(glm::vec3(0.0f, 1.0f, -1.0f)), 0.0f);
+    VkBuffer dirLightBuffer = vklCreateHostCoherentBufferWithBackingMemory(sizeof(DirectionalLightUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(dirLightBuffer, &dirLightUBO, sizeof(DirectionalLightUBO));
 
-    VkResult allocate_des_result = vkAllocateDescriptorSets(vk_device, &descriptor_set_allocate_info, &descriptor_set);
-    VKL_CHECK_VULKAN_ERROR(allocate_des_result);
-
-    VkDescriptorBufferInfo descriptor_buffer_info{};
-    descriptor_buffer_info.buffer = buffer;
-    descriptor_buffer_info.offset = 0;
-    descriptor_buffer_info.range = buffer_size;
-
-    VkWriteDescriptorSet write_descriptor_set{};
-    write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_set.pNext = nullptr;
-    write_descriptor_set.dstSet = descriptor_set;
-    write_descriptor_set.dstBinding = 0;
-    write_descriptor_set.dstArrayElement = 0;
-    write_descriptor_set.descriptorCount = 1;
-    write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    write_descriptor_set.pImageInfo = nullptr;
-    write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
-    write_descriptor_set.pTexelBufferView = nullptr;
-
-    vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set, 0, nullptr);
+    PointLightUBO pointLightUBO{};
+    pointLightUBO.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    pointLightUBO.position = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+    pointLightUBO.attenuation = glm::vec4(1.0f, 0.4f, 0.1f, 0.0f);
+    VkBuffer pointLightBuffer = vklCreateHostCoherentBufferWithBackingMemory(sizeof(PointLightUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(pointLightBuffer, &pointLightUBO, sizeof(PointLightUBO));
 
     // Subtask 2.4: Viewing and Projection
     std::string init_camera_filepath = "assets/settings/camera_front.ini";
@@ -743,323 +738,74 @@ int main(int argc, char** argv) {
     glm::mat4 camera_to_world = rotation * translation;
     // view-projection matrix
     glm::mat4 view = glm::inverse(camera_to_world);
-    glm::mat4 view_projection = projection * view;
+    //glm::mat4 view_projection = projection * view;
 
-    // update the UBOs
-    ubo.view_projection = view_projection;
-    vklCopyDataIntoHostCoherentBuffer(buffer, &ubo, buffer_size);
-    // Subtask 2.5: Multiple Teapots
+    // Subtask 3.5 - 5.1: Cube Geometry with normal vectors
+    /*
+    VkDescriptorSet descriptor_set_cube{};
+    MeshResources cube = SetupMesh(cube_vertices, cube_indices, view, projection, window,
+        descriptor_pool, descriptor_set_layout, descriptor_set_cube, descriptor_set_layout_binding,
+        dirLightBuffer, pointLightBuffer, ShadingMode::Gouraud, vk_device,
+        glm::vec3(-0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+        glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f), 45.0f);
+    */
+    // Subtask 3.6 - 3.7 - 5.2: Cornell Box with normal vectors
+    VkDescriptorSet descriptor_set_cornell{};
+    MeshResources cornell_cube = SetupMesh(cornell_vertices, cornell_indices, view, projection, window,
+        descriptor_pool, descriptor_set_layout, descriptor_set_cornell, descriptor_set_layout_binding,
+        dirLightBuffer, pointLightBuffer, ShadingMode::Multicolor, vk_device,
+        glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.1f, 0.9f, 0.3f, 10.0f), 0.0f, true, false);
 
-    // teapot 1
-    UniformBufferObject teapot1_ubo{};
-    teapot1_ubo.color = glm::vec4(0.49f, 0.06f, 0.22f, 1.0f);
-
-    glm::mat4 model_teapot1 = glm::translate(glm::mat4(1.0f), glm::vec3(-1.0f, -1.0f, 0.0f));
-    model_teapot1 = glm::rotate(model_teapot1, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // rotation, then translation
-    teapot1_ubo.view_projection = view_projection * model_teapot1; // initialization
-
-    VkDeviceSize buffer_size1 = sizeof(teapot1_ubo);
-    VkBuffer buffer1 = vklCreateHostCoherentBufferWithBackingMemory(buffer_size1, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(buffer1, &teapot1_ubo, buffer_size1);
-
-    VkDescriptorSet descriptor_set1;
-    VkDescriptorSetAllocateInfo descriptor_set_allocate_info1{};
-    descriptor_set_allocate_info1.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptor_set_allocate_info1.pNext = nullptr;
-    descriptor_set_allocate_info1.descriptorPool = descriptor_pool;
-    descriptor_set_allocate_info1.descriptorSetCount = 1;
-    descriptor_set_allocate_info1.pSetLayouts = &descriptor_set_layout;
-
-    VkResult allocate_des_result1 = vkAllocateDescriptorSets(vk_device, &descriptor_set_allocate_info1, &descriptor_set1);
-    VKL_CHECK_VULKAN_ERROR(allocate_des_result1);
-
-    VkDescriptorBufferInfo descriptor_buffer_info1{};
-    descriptor_buffer_info1.buffer = buffer1;
-    descriptor_buffer_info1.offset = 0;
-    descriptor_buffer_info1.range = buffer_size1;
-
-    VkWriteDescriptorSet write_descriptor_set1{};
-    write_descriptor_set1.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_set1.pNext = nullptr;
-    write_descriptor_set1.dstSet = descriptor_set1;
-    write_descriptor_set1.dstBinding = 0;
-    write_descriptor_set1.dstArrayElement = 0;
-    write_descriptor_set1.descriptorCount = 1;
-    write_descriptor_set1.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    write_descriptor_set1.pImageInfo = nullptr;
-    write_descriptor_set1.pBufferInfo = &descriptor_buffer_info1;
-    write_descriptor_set1.pTexelBufferView = nullptr;
-
-    vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set1, 0, nullptr);
-
-    // teapot 2
-    UniformBufferObject teapot2_ubo{};
-    teapot2_ubo.color = glm::vec4(0.0f, 0.13f, 0.31f, 1.0f);
-
-    glm::mat4 model_teapot2 = glm::translate(glm::mat4(1.0f), glm::vec3(1.5f, 1.0f, 0.0f));
-    model_teapot2 = glm::scale(model_teapot2, glm::vec3(1.0f, 2.0f, 1.0f)); // scal
-    teapot2_ubo.view_projection = view_projection * model_teapot2; // initialization
-    VkDeviceSize buffer_size2 = sizeof(teapot2_ubo);
-    VkBuffer buffer2 = vklCreateHostCoherentBufferWithBackingMemory(buffer_size2, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(buffer2, &teapot2_ubo, buffer_size2);
-
-    VkDescriptorSet descriptor_set2;
-    VkDescriptorSetAllocateInfo descriptor_set_allocate_info2{};
-    descriptor_set_allocate_info2.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptor_set_allocate_info2.pNext = nullptr;
-    descriptor_set_allocate_info2.descriptorPool = descriptor_pool;
-    descriptor_set_allocate_info2.descriptorSetCount = 1;
-    descriptor_set_allocate_info2.pSetLayouts = &descriptor_set_layout;
-    VkResult allocate_des_result2 = vkAllocateDescriptorSets(vk_device, &descriptor_set_allocate_info2, &descriptor_set2);
-    VKL_CHECK_VULKAN_ERROR(allocate_des_result2);
-
-    VkDescriptorBufferInfo descriptor_buffer_info2{};
-    descriptor_buffer_info2.buffer = buffer2;
-    descriptor_buffer_info2.offset = 0;
-    descriptor_buffer_info2.range = buffer_size2;
-
-    VkWriteDescriptorSet write_descriptor_set2{};
-    write_descriptor_set2.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_set2.pNext = nullptr;
-    write_descriptor_set2.dstSet = descriptor_set2;
-    write_descriptor_set2.dstBinding = 0;
-    write_descriptor_set2.dstArrayElement = 0;
-    write_descriptor_set2.descriptorCount = 1;
-    write_descriptor_set2.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    write_descriptor_set2.pImageInfo = nullptr;
-    write_descriptor_set2.pBufferInfo = &descriptor_buffer_info2;
-    write_descriptor_set2.pTexelBufferView = nullptr;
-
-    vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set2, 0, nullptr);
-
-    // Subtask 3.5: Cube Geometry (cube map)
-    std::vector<float> cube_vertices;
-    for (const auto& vertex: cube_vertices_temp) {
-        cube_vertices.push_back(vertex.x);
-        cube_vertices.push_back(vertex.y);
-        cube_vertices.push_back(vertex.z);
-    }
-    VkDeviceSize cube_vertex_buffer_size = sizeof(float) * cube_vertices.size();
-    VkBuffer cube_vertex_buffer = vklCreateHostCoherentBufferWithBackingMemory(cube_vertex_buffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(cube_vertex_buffer, cube_vertices.data(), cube_vertex_buffer_size);
-
-    VkDeviceSize cube_index_buffer_size = sizeof(uint32_t) * cube_indices.size();
-    VkBuffer cube_index_buffer = vklCreateHostCoherentBufferWithBackingMemory(cube_index_buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(cube_index_buffer, cube_indices.data(), cube_index_buffer_size);
-
-    // Subtask 3.6 - 3.7: Cornell Box
-    std::vector<CornellVertex> cornell_vertices = cornell_vertices_temp;
-    VkDeviceSize cornell_vertex_buffer_size = sizeof(CornellVertex) * cornell_vertices.size();
-    VkBuffer cornell_vertex_buffer = vklCreateHostCoherentBufferWithBackingMemory(cornell_vertex_buffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(cornell_vertex_buffer, cornell_vertices.data(), cornell_vertex_buffer_size);
-
-    VkDeviceSize cornell_index_buffer_size = sizeof(uint32_t) * cornell_indices.size();
-    VkBuffer cornell_index_buffer = vklCreateHostCoherentBufferWithBackingMemory(cornell_index_buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(cornell_index_buffer, cornell_indices.data(), cornell_index_buffer_size);
-
-    VklGraphicsPipelineConfig cornell_pipe_config = graphics_pipe_config;
-    VkVertexInputBindingDescription cornell_bindings = {};
-    cornell_bindings.binding = 0;
-    cornell_bindings.stride = sizeof(CornellVertex);
-    cornell_bindings.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-    // clear any existing binding/attribute descriptions copied from graphics_pipe_config
-    cornell_pipe_config.vertexInputBuffers.clear();
-    cornell_pipe_config.inputAttributeDescriptions.clear();
-
-    cornell_pipe_config.vertexInputBuffers.push_back(cornell_bindings);
-
-    vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.vert");
-    fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.frag");
-    cornell_pipe_config.vertexShaderPath = vertex_shader_path.c_str();
-    cornell_pipe_config.fragmentShaderPath = fragment_shader_path.c_str();
-
-    // attribute: position
-    VkVertexInputAttributeDescription cornell_position = {};
-    cornell_position.location = 0;
-    cornell_position.binding = 0;
-    cornell_position.format = VK_FORMAT_R32G32B32_SFLOAT;
-    cornell_position.offset = offsetof(CornellVertex, position);
-    cornell_pipe_config.inputAttributeDescriptions.push_back(cornell_position);
-
-    // attribute: color
-    VkVertexInputAttributeDescription cornell_color = {};
-    cornell_color.location = 1;
-    cornell_color.binding = 0;
-    cornell_color.format = VK_FORMAT_R32G32B32_SFLOAT;
-    cornell_color.offset = offsetof(CornellVertex, color);
-    cornell_pipe_config.inputAttributeDescriptions.push_back(cornell_color);
-
-    VkPipeline cornell_pipelines[4];
-    for (uint32_t wire = 0; wire < 2; wire++) {
-        for (uint32_t cull = 0; cull < 2; cull++) {
-            cornell_pipe_config.polygonDrawMode = wire ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
-            cornell_pipe_config.triangleCullingMode = (cull == 0) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
-            cornell_pipelines[wire * 2 + cull] = vklCreateGraphicsPipeline(cornell_pipe_config);
-        }
-    }
-
-    // Subtask 3.8: Test Scene
-    std::vector<cubeVertex> cubeVertices = cubeVertices_temp;
-    VkDeviceSize cubeVertexBuffer_size = sizeof(cubeVertex) * cubeVertices.size();
-    VkBuffer cubeVertex_buffer = vklCreateHostCoherentBufferWithBackingMemory(cubeVertexBuffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(cubeVertex_buffer, cubeVertices.data(), cubeVertexBuffer_size);
-
-    VkDeviceSize cubeIndexBuffer_size = sizeof(uint32_t) * cube_indices.size();
-    VkBuffer cubeIndexBuffer = vklCreateHostCoherentBufferWithBackingMemory(cubeIndexBuffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(cubeIndexBuffer, cube_indices.data(), cubeIndexBuffer_size);
-
-    VklGraphicsPipelineConfig cube_pipe_config = graphics_pipe_config;
-    VkVertexInputBindingDescription cube_bindings = {};
-    cube_bindings.binding = 0;
-    cube_bindings.stride = sizeof(cubeVertex);
-    cube_bindings.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    cube_pipe_config.vertexInputBuffers.clear();
-    cube_pipe_config.inputAttributeDescriptions.clear();
-
-    cube_pipe_config.vertexInputBuffers.push_back(cube_bindings);
-
-    vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/shader.vert");
-    fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/shader.frag");
-    cube_pipe_config.vertexShaderPath = vertex_shader_path.c_str();
-    cube_pipe_config.fragmentShaderPath = fragment_shader_path.c_str();
-
-    // attribute: position
-    VkVertexInputAttributeDescription cube_position = {};
-    cube_position.location = 0;
-    cube_position.binding = 0;
-    cube_position.format = VK_FORMAT_R32G32B32_SFLOAT;
-    cube_position.offset = offsetof(cubeVertex, position);
-    cube_pipe_config.inputAttributeDescriptions.push_back(cube_position);
-
-    VkPipeline cube_pipelines[4];
-    for (uint32_t wire = 0; wire < 2; wire++) {
-        for (uint32_t cull = 0; cull < 2; cull++) {
-            cube_pipe_config.polygonDrawMode = wire ? VK_POLYGON_MODE_LINE : VK_POLYGON_MODE_FILL;
-            cube_pipe_config.triangleCullingMode = (cull == 0) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
-            cube_pipelines[wire * 2 + cull] = vklCreateGraphicsPipeline(cube_pipe_config);
-        }
-    }
-
-    UniformBufferObject cube_ubo{};
-    //cube_ubo.color = glm::vec4(0.75f, 0.25f, 0.01f, 1.0f);
-
-    glm::mat4 model_cube = glm::mat4(1.0f);
-    //model_cube = glm::rotate(glm::mat4(1.0f), glm::radians(45.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    // Subtask 4.4: Test Scene (rotation + translation)
-    cube_ubo.color = glm::vec4(0.0f, 0.21f, 0.16f, 1.0f);
-    model_cube = glm::translate(model_cube, glm::vec3(-0.6f, -0.9f, 0.0f));
-    model_cube = glm::rotate(model_cube, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    cube_ubo.view_projection = view_projection * model_cube;
-
-    VkDeviceSize cube_buffer_size = sizeof(cube_ubo);
-    VkBuffer cube_buffer = vklCreateHostCoherentBufferWithBackingMemory(cube_buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(cube_buffer, &cube_ubo, cube_buffer_size);
-    vklEnablePipelineHotReloading(window, GLFW_KEY_F5);
-
-    VkDescriptorSet descriptor_set_cube;
-    VkDescriptorSetAllocateInfo descriptor_set_allocate_info_cube{};
-    descriptor_set_allocate_info_cube.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptor_set_allocate_info_cube.pNext = nullptr;
-    descriptor_set_allocate_info_cube.descriptorPool = descriptor_pool;
-    descriptor_set_allocate_info_cube.descriptorSetCount = 1;
-    descriptor_set_allocate_info_cube.pSetLayouts = &descriptor_set_layout;
-
-    VkResult allocate_des_result_cube = vkAllocateDescriptorSets(vk_device, &descriptor_set_allocate_info_cube, &descriptor_set_cube);
-    VKL_CHECK_VULKAN_ERROR(allocate_des_result_cube);
-
-    VkDescriptorBufferInfo descriptor_buffer_info_cube{};
-    descriptor_buffer_info_cube.buffer = cube_buffer;
-    descriptor_buffer_info_cube.offset = 0;
-    descriptor_buffer_info_cube.range = cube_buffer_size;
-
-    VkWriteDescriptorSet write_descriptor_set_cube{};
-    write_descriptor_set_cube.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_set_cube.pNext = nullptr;
-    write_descriptor_set_cube.dstSet = descriptor_set_cube;
-    write_descriptor_set_cube.dstBinding = 0;
-    write_descriptor_set_cube.dstArrayElement = 0;
-    write_descriptor_set_cube.descriptorCount = 1;
-    write_descriptor_set_cube.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    write_descriptor_set_cube.pImageInfo = nullptr;
-    write_descriptor_set_cube.pBufferInfo = &descriptor_buffer_info_cube;
-    write_descriptor_set_cube.pTexelBufferView = nullptr;
-
-    vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set_cube, 0, nullptr);
-
-    // Subtask 4.1: Cylinder Geometry
-    std::vector<glm::vec3> cylinderVertices;
-    std::vector<uint32_t> cylinderIndices;
-    buildCylinder(1.6f, 0.21f, 20, cylinderVertices, cylinderIndices);
+    // Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
+    std::vector<Vertex> cylinder_vertices;
+    std::vector<uint32_t> cylinder_indices;
+    buildCylinder(1.6f, 0.21f, 20, cylinder_vertices, cylinder_indices);
 
     VkDescriptorSet descriptor_set_cylinder{};
-    VkDescriptorSetAllocateInfo alloc_info_cylinder{};
-    alloc_info_cylinder.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    alloc_info_cylinder.descriptorPool = descriptor_pool;
-    alloc_info_cylinder.descriptorSetCount = 1;
-    alloc_info_cylinder.pSetLayouts = &descriptor_set_layout;
-    VkResult res = vkAllocateDescriptorSets(vk_device, &alloc_info_cylinder, &descriptor_set_cylinder);
-    VKL_CHECK_VULKAN_ERROR(res);
+    MeshResources cylinder = SetupMesh(cylinder_vertices, cylinder_indices, view, projection, window,
+        descriptor_pool, descriptor_set_layout, descriptor_set_cylinder, descriptor_set_layout_binding,
+        dirLightBuffer, pointLightBuffer, ShadingMode::Phong, vk_device,
+        glm::vec3(0.6f, 0.3f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec4(0.75f, 0.25f, 0.01f, 1.0f), glm::vec4(0.1f, 0.9f, 0.3f, 5.0f));
 
-    MeshResources cylinder = createMesh(cylinderVertices, cylinderIndices, view_projection, window, descriptor_set_cylinder, vk_device);
-
-    cylinder.ubo.color = glm::vec4(0.75f, 0.25f, 0.01f, 1.0f);
-
-    // Subtask 4.4: Test Scene
-    glm::mat4 model_cylinder = glm::mat4(1.0f);
-    model_cylinder = glm::translate(model_cylinder, glm::vec3(0.6f, 0.3f, 0.0f));
-    cylinder.ubo.view_projection = view_projection * model_cylinder;
-
-    // Subtask 4.2: Sphere Geometry
-    std::vector<glm::vec3> sphereVertices;
-    std::vector<uint32_t> sphereIndices;
-    buildSphere(36, 18, 0.26, sphereVertices, sphereIndices);
+    // Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
+    std::vector<Vertex> sphere_vertices;
+    std::vector<uint32_t> sphere_indices;
+    buildSphere(36, 18, 0.26f, sphere_vertices, sphere_indices);
 
     VkDescriptorSet descriptor_set_sphere{};
-    VkDescriptorSetAllocateInfo alloc_info_sphere{};
-    alloc_info_sphere.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    alloc_info_sphere.descriptorPool = descriptor_pool;
-    alloc_info_sphere.descriptorSetCount = 1;
-    alloc_info_sphere.pSetLayouts = &descriptor_set_layout;
-    res = vkAllocateDescriptorSets(vk_device, &alloc_info_sphere, &descriptor_set_sphere);
-    VKL_CHECK_VULKAN_ERROR(res);
+    MeshResources sphere = SetupMesh(sphere_vertices, sphere_indices, view, projection, window,
+        descriptor_pool, descriptor_set_layout, descriptor_set_sphere, descriptor_set_layout_binding,
+        dirLightBuffer, pointLightBuffer, ShadingMode::Gouraud, vk_device,
+        glm::vec3(-0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f));
 
-    MeshResources sphere = createMesh(sphereVertices, sphereIndices, view_projection, window, descriptor_set_sphere, vk_device);
+    VkDescriptorSet descriptor_set_sphere_2{};
+    MeshResources sphere_2 = SetupMesh(sphere_vertices, sphere_indices, view, projection, window,
+        descriptor_pool, descriptor_set_layout, descriptor_set_sphere_2, descriptor_set_layout_binding,
+        dirLightBuffer, pointLightBuffer, ShadingMode::Phong, vk_device,
+        glm::vec3(0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f));
 
-    sphere.ubo.color = glm::vec4(0.12f, 0.12f, 0.12f, 1.0f);
-    // Subtask 4.4: Test Scene
-    glm::mat4 model_sphere = glm::mat4(1.0f);
-    model_sphere = glm::translate(model_sphere, glm::vec3(0.6f, -0.9f, 0.0f));
-    sphere.ubo.view_projection = view_projection * model_sphere;
-
-    // Subtask 4.3: Bézier Cylinder Geometry
-    std::vector<glm::vec3> bezierCylinderVertices;
-    std::vector<uint32_t> bezierCylinderIndices;
-    std::vector<glm::vec3> controlPoints = {
+    // Subtask 4.3 - 5.5: Bézier Cylinder Geometry with normal vectors
+    std::vector<Vertex> bezier_cylinder_vertices;
+    std::vector<uint32_t> bezier_cylinder_indices;
+    std::vector<glm::vec3> control_points = {
         {-0.3f, 0.6f, 0.0f},
         {0.0f, 1.6f, 0.0f},
         {1.4f, 0.3f, 0.0f},
         {0.0f, 0.3f, 0.0f},
         {0.0f, -0.5f, 0.0f}
     };
-    buildBezierCylinder(36, 20, 0.21, controlPoints,bezierCylinderVertices, bezierCylinderIndices);
+    buildBezierCylinder(36, 20, 0.21f, control_points,bezier_cylinder_vertices, bezier_cylinder_indices);
 
-    VkDescriptorSet descriptor_set_bezierCylinder{};
-    VkDescriptorSetAllocateInfo alloc_info_bezierCylinder{};
-    alloc_info_bezierCylinder.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    alloc_info_bezierCylinder.descriptorPool = descriptor_pool;
-    alloc_info_bezierCylinder.descriptorSetCount = 1;
-    alloc_info_bezierCylinder.pSetLayouts = &descriptor_set_layout;
-    res = vkAllocateDescriptorSets(vk_device, &alloc_info_bezierCylinder, &descriptor_set_bezierCylinder);
-    VKL_CHECK_VULKAN_ERROR(res);
-
-    MeshResources bezierCylinder = createMesh(bezierCylinderVertices, bezierCylinderIndices, view_projection, window, descriptor_set_bezierCylinder, vk_device);
-
-    bezierCylinder.ubo.color = glm::vec4(0.75f, 0.25f, 0.01f, 1.0f);
-    // Subtask 4.4: Test Scene
-    glm::mat4 model_bezierCylinder = glm::mat4(1.0f);
-    model_bezierCylinder = glm::translate(model_bezierCylinder, glm::vec3(-0.6f, 0.0f, 0.0f));
-    bezierCylinder.ubo.view_projection = view_projection * model_bezierCylinder;
+    VkDescriptorSet descriptor_set_bezier_cylinder{};
+    MeshResources bezier_cylinder = SetupMesh(bezier_cylinder_vertices, bezier_cylinder_indices, view, projection, window,
+        descriptor_pool, descriptor_set_layout, descriptor_set_bezier_cylinder, descriptor_set_layout_binding,
+        dirLightBuffer, pointLightBuffer, ShadingMode::Phong, vk_device,
+        glm::vec3(-0.6f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec4(0.75f, 0.25f, 0.01f, 1.0f), glm::vec4(0.1f, 0.9f, 0.3f, 5.0f));
 
     /* --------------------------------------------- */
     // Subtask 1.10: Set-up the Render Loop
@@ -1085,116 +831,115 @@ int main(int argc, char** argv) {
         view[2] = glm::vec4(-direction, 0.0f);
         view[3] = glm::vec4(camera_pos, 1.0f);
         view = glm::inverse(view);
-        view_projection = projection * view;
-
-        ubo.view_projection = view_projection;
-        vklCopyDataIntoHostCoherentBuffer(buffer, &ubo, buffer_size);
-
-        teapot1_ubo.view_projection = view_projection * model_teapot1;
-        vklCopyDataIntoHostCoherentBuffer(buffer1, &teapot1_ubo, buffer_size1);
-
-        teapot2_ubo.view_projection = view_projection * model_teapot2;
-        vklCopyDataIntoHostCoherentBuffer(buffer2, &teapot2_ubo, buffer_size2);
+        //view_projection = projection * view;
 
         vklWaitForNextSwapchainImage();
         vklStartRecordingCommands();
-        //gcgDrawTeapot(pipeline, descriptor_set);
-        //gcgDrawTeapot(pipeline, descriptor_set1);
-        //gcgDrawTeapot(pipeline, descriptor_set2);
-        VkPipeline curr_pipeline = pipelines[is_wireframe * 2 + cull_mode_idx];
-        //gcgDrawTeapot(curr_pipeline, descriptor_set1); // subtask 3.3: Interaction
-        //gcgDrawTeapot(curr_pipeline, descriptor_set2); // subtask 3.3: Interaction
 
         // Subtask 3.4: Command Buffer Recording
         VkCommandBuffer cmdBuffer = vklGetCurrentCommandBuffer();
-        VkPipelineLayout pipeline_layout = vklGetLayoutForPipeline(curr_pipeline);
-        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_pipeline);
 
-        VkBuffer vertex_buffer = gcgGetTeapotPositionsBuffer();
+        vklCopyDataIntoHostCoherentBuffer(pointLightBuffer, &pointLightUBO, sizeof(PointLightUBO));
+
         VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertex_buffer, offsets);
+        // Subtask 3.5 - 5.1: Cube Geometry with normals
+        /*
+        cube.ubo.view = view;
+        cube.ubo.projection = projection;
+        cube.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
+        cube.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
+        vklCopyDataIntoHostCoherentBuffer(cube.uniformBuffer, &cube.ubo, cube.uniformBufferSize);
 
-        VkBuffer index_buffer = gcgGetTeapotIndicesBuffer();
-        vkCmdBindIndexBuffer(cmdBuffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
+        VkPipeline cube_pipeline = cube.pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipelineLayout cube_pipeline_layout = vklGetLayoutForPipeline(cube_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cube_pipeline);
 
-        // draw teapot 1
-        //vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_set1, 0, nullptr);
-        //vkCmdDrawIndexed(cmdBuffer, gcgGetNumTeapotIndices(), 1, 0, 0, 0);
-
-        // draw teapot 2
-        //vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_set2, 0, nullptr);
-        //vkCmdDrawIndexed(cmdBuffer, gcgGetNumTeapotIndices(), 1, 0, 0, 0);
-
-        // Subtask 3.5: Cube Geometry (cube map)
-        //vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cube_vertex_buffer, offsets);
-        //vkCmdBindIndexBuffer(cmdBuffer, cube_index_buffer, 0, VK_INDEX_TYPE_UINT32);
-        //vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-        //vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
-
-        // Subtask 3.6 - 3.7: Cornell Box
-        VkPipeline curr_cornell_pipeline = cornell_pipelines[is_wireframe * 2 + cull_mode_idx];
-        VkPipelineLayout cornell_pipeline_layout = vklGetLayoutForPipeline(curr_cornell_pipeline);
-        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_cornell_pipeline);
-
-        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cornell_vertex_buffer, offsets);
-        vkCmdBindIndexBuffer(cmdBuffer, cornell_index_buffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cornell_pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
-        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cornell_indices.size()), 1, 0, 0, 0);
-
-        // Subtask 3.8: Test Scene
-        cube_ubo.view_projection =  view_projection * model_cube;
-        vklCopyDataIntoHostCoherentBuffer(cube_buffer, &cube_ubo, cube_buffer_size);
-
-        VkPipeline curr_cube_pipeline = cube_pipelines[is_wireframe * 2 + cull_mode_idx];
-        VkPipelineLayout cube_pipeline_layout = vklGetLayoutForPipeline(curr_cube_pipeline);
-        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_cube_pipeline);
-
-        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cubeVertex_buffer, offsets);
-        vkCmdBindIndexBuffer(cmdBuffer, cubeIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cube.vertexBuffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, cube.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cube_pipeline_layout, 0, 1, &descriptor_set_cube, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
+        */
 
-        // Subtask 4.1: Cylinder Geometry
-        cylinder.ubo.view_projection = view_projection * model_cylinder;
+        // Subtask 3.6 - 3.7 - 5.2: Cornell Box
+        cornell_cube.ubo.view = view;
+        cornell_cube.ubo.projection = projection;
+        cornell_cube.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
+        cornell_cube.ubo.userInput.z = 1;
+        cornell_cube.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
+        vklCopyDataIntoHostCoherentBuffer(cornell_cube.uniformBuffer, &cornell_cube.ubo, cornell_cube.uniformBufferSize);
+
+        VkPipeline cornell_pipeline = cornell_cube.pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipelineLayout cornell_pipeline_layout = vklGetLayoutForPipeline(cornell_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cornell_pipeline);
+
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cornell_cube.vertexBuffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, cornell_cube.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cornell_pipeline_layout, 0, 1, &descriptor_set_cornell, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cornell_indices.size()), 1, 0, 0, 0);
+
+        // Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
+        cylinder.ubo.view = view;
+        cylinder.ubo.projection = projection;
+        cylinder.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
+        cylinder.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
         vklCopyDataIntoHostCoherentBuffer(cylinder.uniformBuffer, &cylinder.ubo, cylinder.uniformBufferSize);
 
-        VkPipeline curr_cylinder_pipeline = cylinder.pipelines[is_wireframe * 2 + cull_mode_idx];
-        VkPipelineLayout cylinder_pipeline_layout = vklGetLayoutForPipeline(curr_cylinder_pipeline);
-        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_cylinder_pipeline);
+        VkPipeline cylinder_pipeline = cylinder.pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipelineLayout cylinder_pipeline_layout = vklGetLayoutForPipeline(cylinder_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cylinder_pipeline);
 
         vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cylinder.vertexBuffer, offsets);
         vkCmdBindIndexBuffer(cmdBuffer, cylinder.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cylinder_pipeline_layout, 0, 1, &descriptor_set_cylinder, 0, nullptr);
-        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cylinderIndices.size()), 1, 0, 0, 0);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cylinder_indices.size()), 1, 0, 0, 0);
 
-        // Subtask 4.2: Sphere Geometry
-
-        sphere.ubo.view_projection = view_projection * model_sphere;
+        // Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
+        sphere.ubo.view = view;
+        sphere.ubo.projection = projection;
+        sphere.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
+        sphere.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
         vklCopyDataIntoHostCoherentBuffer(sphere.uniformBuffer, &sphere.ubo, sphere.uniformBufferSize);
 
-        VkPipeline curr_sphere_pipeline = sphere.pipelines[is_wireframe * 2 + cull_mode_idx];
-        VkPipelineLayout sphere_pipeline_layout = vklGetLayoutForPipeline(curr_sphere_pipeline);
-        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_sphere_pipeline);
+        VkPipeline sphere_pipeline = sphere.pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipelineLayout sphere_pipeline_layout = vklGetLayoutForPipeline(sphere_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_pipeline);
 
         vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &sphere.vertexBuffer, offsets);
         vkCmdBindIndexBuffer(cmdBuffer, sphere.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_pipeline_layout, 0, 1, &descriptor_set_sphere, 0, nullptr);
-        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(sphereIndices.size()), 1, 0, 0, 0);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(sphere_indices.size()), 1, 0, 0, 0);
 
+        // sphere 2
+        sphere_2.ubo.view = view;
+        sphere_2.ubo.projection = projection;
+        sphere_2.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
+        sphere_2.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
+        vklCopyDataIntoHostCoherentBuffer(sphere_2.uniformBuffer, &sphere_2.ubo, sphere_2.uniformBufferSize);
 
-        // Subtask 4.3: Bézier Cylinder
+        VkPipeline sphere_2_pipeline = sphere_2.pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipelineLayout sphere_2_pipeline_layout = vklGetLayoutForPipeline(sphere_2_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_2_pipeline);
 
-        bezierCylinder.ubo.view_projection = view_projection * model_bezierCylinder;
-        vklCopyDataIntoHostCoherentBuffer(bezierCylinder.uniformBuffer, &bezierCylinder.ubo, bezierCylinder.uniformBufferSize);
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &sphere_2.vertexBuffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, sphere_2.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_2_pipeline_layout, 0, 1, &descriptor_set_sphere_2, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(sphere_indices.size()), 1, 0, 0, 0);
 
-        VkPipeline curr_bezierCylinder_pipeline = bezierCylinder.pipelines[is_wireframe * 2 + cull_mode_idx];
+        // Subtask 4.3 - 5.5: Bézier Cylinder with normal vectors
+        bezier_cylinder.ubo.view = view;
+        bezier_cylinder.ubo.projection = projection;
+        bezier_cylinder.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
+        bezier_cylinder.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
+        vklCopyDataIntoHostCoherentBuffer(bezier_cylinder.uniformBuffer, &bezier_cylinder.ubo, bezier_cylinder.uniformBufferSize);
+
+        VkPipeline curr_bezierCylinder_pipeline = bezier_cylinder.pipelines[is_wireframe * 2 + cull_mode_idx];
         VkPipelineLayout bezierCylinder_pipeline_layout = vklGetLayoutForPipeline(curr_bezierCylinder_pipeline);
         vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, curr_bezierCylinder_pipeline);
 
-        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &bezierCylinder.vertexBuffer, offsets);
-        vkCmdBindIndexBuffer(cmdBuffer, bezierCylinder.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bezierCylinder_pipeline_layout, 0, 1, &descriptor_set_bezierCylinder, 0, nullptr);
-        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(bezierCylinderIndices.size()), 1, 0, 0, 0);
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &bezier_cylinder.vertexBuffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, bezier_cylinder.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bezierCylinder_pipeline_layout, 0, 1, &descriptor_set_bezier_cylinder, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(bezier_cylinder_indices.size()), 1, 0, 0, 0);
 
         vklEndRecordingCommands();
         vklPresentCurrentSwapchainImage();
@@ -1219,28 +964,22 @@ int main(int argc, char** argv) {
     /* --------------------------------------------- */
     // Subtask 1.12: Cleanup
     /* --------------------------------------------- */
-    vklDestroyGraphicsPipeline(pipeline);
     for (uint32_t i = 0; i < 4; i++) {
-        vklDestroyGraphicsPipeline(pipelines[i]);
-        vklDestroyGraphicsPipeline(cornell_pipelines[i]);
-        vklDestroyGraphicsPipeline(cube_pipelines[i]);
+        //vklDestroyGraphicsPipeline(cube.pipelines[i]);
+        vklDestroyGraphicsPipeline(cornell_cube.pipelines[i]);
         vklDestroyGraphicsPipeline(cylinder.pipelines[i]);
         vklDestroyGraphicsPipeline(sphere.pipelines[i]);
-        vklDestroyGraphicsPipeline(bezierCylinder.pipelines[i]);
+        vklDestroyGraphicsPipeline(sphere_2.pipelines[i]);
+        vklDestroyGraphicsPipeline(bezier_cylinder.pipelines[i]);
     }
-    vklDestroyHostCoherentBufferAndItsBackingMemory(buffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(buffer1);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(buffer2);
 
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cube_buffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cube_vertex_buffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cube_index_buffer);
+    //vklDestroyHostCoherentBufferAndItsBackingMemory(cube.uniformBuffer);
+    //vklDestroyHostCoherentBufferAndItsBackingMemory(cube.vertexBuffer);
+    //vklDestroyHostCoherentBufferAndItsBackingMemory(cube.indexBuffer);
 
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_vertex_buffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_index_buffer);
-
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cubeVertex_buffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cubeIndexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_cube.uniformBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_cube.vertexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_cube.indexBuffer);
 
     vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder.uniformBuffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder.vertexBuffer);
@@ -1250,9 +989,16 @@ int main(int argc, char** argv) {
     vklDestroyHostCoherentBufferAndItsBackingMemory(sphere.vertexBuffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(sphere.indexBuffer);
 
-    vklDestroyHostCoherentBufferAndItsBackingMemory(bezierCylinder.uniformBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(bezierCylinder.vertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(bezierCylinder.indexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere_2.uniformBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere_2.vertexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere_2.indexBuffer);
+
+    vklDestroyHostCoherentBufferAndItsBackingMemory(bezier_cylinder.uniformBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(bezier_cylinder.vertexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(bezier_cylinder.indexBuffer);
+
+    vklDestroyHostCoherentBufferAndItsBackingMemory(dirLightBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(pointLightBuffer);
 
     vkDestroyDescriptorSetLayout(vk_device, descriptor_set_layout, nullptr);
     vkDestroyDescriptorPool(vk_device, descriptor_pool, nullptr);
@@ -1418,53 +1164,144 @@ void scroll_callback(GLFWwindow* window, double x_offset, double y_offset) {
     if (zoom > 45.0f) zoom = 45.0f;
 }
 
+MeshResources SetupMesh(
+    std::vector<Vertex>& vertices,
+    std::vector<uint32_t>& indices,
+    glm::mat4 view,
+    glm::mat4 projection,
+    GLFWwindow* window,
+    VkDescriptorPool descriptor_pool,
+    VkDescriptorSetLayout descriptor_set_layout,
+    VkDescriptorSet &descriptor_set,
+    std::array<VkDescriptorSetLayoutBinding, 3>& descriptor_set_layout_binding,
+    VkBuffer dirLightBuffer,
+    VkBuffer pointLightBuffer,
+    ShadingMode shadingMode,
+    VkDevice vk_device,
+    glm::vec3 translation,
+    glm::vec3 rotation_axis,
+    glm::vec4 color,
+    glm::vec4 material,
+    float rotation_degrees,
+    bool multicolor,
+    bool translate
+    ) {
 
-// Subtask 4.1: Cylinder Geometry
-MeshResources createMesh(std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices, glm::mat4 view_projection, GLFWwindow* window, VkDescriptorSet descriptor_set, VkDevice vk_device) {
+    VkDescriptorSetAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    alloc_info.descriptorPool = descriptor_pool;
+    alloc_info.descriptorSetCount = 1;
+    alloc_info.pSetLayouts = &descriptor_set_layout;
+
+    VkResult res = vkAllocateDescriptorSets(vk_device, &alloc_info, &descriptor_set);
+    VKL_CHECK_VULKAN_ERROR(res);
+
+    MeshResources mesh = createMesh(vertices, indices, view, projection, window,
+        descriptor_set, descriptor_set_layout_binding, dirLightBuffer, pointLightBuffer, shadingMode, vk_device);
+
+    glm::mat4 model = glm::mat4(1.0f);
+    if (translate) {
+        model = glm::translate(model, translation);
+    }
+    if (rotation_degrees != 0.0f) {
+        model = glm::rotate(model, glm::radians(rotation_degrees), rotation_axis);
+    }
+    mesh.ubo.model = model;
+    mesh.ubo.view = view;
+    mesh.ubo.projection = projection;
+    mesh.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, multicolor? 1: 0, 0);
+    mesh.ubo.material = material;
+    mesh.ubo.camera_pos = glm::vec4(0.0f, 0.0f, zoom, 1.0f);
+    if (!multicolor) {
+        mesh.ubo.color = color;
+    }
+    vklCopyDataIntoHostCoherentBuffer(mesh.uniformBuffer, &mesh.ubo, mesh.uniformBufferSize);
+
+    return mesh;
+}
+
+MeshResources createMesh(
+    std::vector<Vertex>& vertices,
+    std::vector<uint32_t>& indices,
+    glm::mat4 view,
+    glm::mat4 projection,
+    GLFWwindow* window,
+    VkDescriptorSet &descriptor_set,
+    std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding,
+    VkBuffer dirLightBuffer,
+    VkBuffer pointLightBuffer,
+    ShadingMode shadingMode,
+    VkDevice vk_device) {
     if (descriptor_set == VK_NULL_HANDLE) {
         throw std::runtime_error("Unable to create mesh descriptor set");
     }
-
     MeshResources mesh;
 
-    VkDeviceSize VertexBuffer_size = sizeof(glm::vec3) * vertices.size();
-    mesh.vertexBuffer = vklCreateHostCoherentBufferWithBackingMemory(VertexBuffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(mesh.vertexBuffer, vertices.data(), VertexBuffer_size);
+    VkDeviceSize vertex_buffer_size = sizeof(Vertex) * vertices.size();
+    mesh.vertexBuffer = vklCreateHostCoherentBufferWithBackingMemory(vertex_buffer_size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(mesh.vertexBuffer, vertices.data(), vertex_buffer_size);
 
-    VkDeviceSize IndexBuffer_size = sizeof(uint32_t) * indices.size();
-    mesh.indexBuffer = vklCreateHostCoherentBufferWithBackingMemory(IndexBuffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(mesh.indexBuffer, indices.data(), IndexBuffer_size);
+    VkDeviceSize index_buffer_size = sizeof(uint32_t) * indices.size();
+    mesh.indexBuffer = vklCreateHostCoherentBufferWithBackingMemory(index_buffer_size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(mesh.indexBuffer, indices.data(), index_buffer_size);
 
     VklGraphicsPipelineConfig pipe_config{};
-    VkVertexInputBindingDescription bindings = {};
+    VkVertexInputBindingDescription bindings{};
     bindings.binding = 0;
-    bindings.stride = sizeof(glm::vec3);
+    bindings.stride = sizeof(Vertex);
     bindings.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     pipe_config.vertexInputBuffers.clear();
     pipe_config.inputAttributeDescriptions.clear();
     pipe_config.vertexInputBuffers.push_back(bindings);
 
-    std::string vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/shader.vert");
-    std::string fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/shader.frag");
-    pipe_config.vertexShaderPath = vertex_shader_path.c_str();
-    pipe_config.fragmentShaderPath = fragment_shader_path.c_str();
-
     // attribute: position
     VkVertexInputAttributeDescription position = {};
     position.location = 0;
     position.binding = 0;
     position.format = VK_FORMAT_R32G32B32_SFLOAT;
-    position.offset = 0;
+    position.offset = offsetof(Vertex, position);
     pipe_config.inputAttributeDescriptions.push_back(position);
 
-    VkDescriptorSetLayoutBinding descriptor_set_layout_binding{};
-    descriptor_set_layout_binding.binding = 0;
-    descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptor_set_layout_binding.descriptorCount = 1;
-    descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-    descriptor_set_layout_binding.pImmutableSamplers = nullptr;
-    pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding);
+    // attribute: normal
+    VkVertexInputAttributeDescription normal = {};
+    normal.location = 1;
+    normal.binding = 0;
+    normal.format = VK_FORMAT_R32G32B32_SFLOAT;
+    normal.offset = offsetof(Vertex, normal);
+    pipe_config.inputAttributeDescriptions.push_back(normal);
+
+    // attribute: color
+    VkVertexInputAttributeDescription color = {};
+    color.location = 2;
+    color.binding = 0;
+    color.format = VK_FORMAT_R32G32B32_SFLOAT;
+    color.offset = offsetof(Vertex, color);
+    pipe_config.inputAttributeDescriptions.push_back(color);
+
+    std::string vertex_shader_path;
+    std::string fragment_shader_path;
+
+    switch(shadingMode) {
+        case ShadingMode::Gouraud:
+            vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/gouraud.vert");
+            fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/gouraud.frag");
+            break;
+        case ShadingMode::Phong:
+            vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/phong.vert");
+            fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/phong.frag");
+            break;
+        case ShadingMode::Multicolor:
+            vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.vert");
+            fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.frag");
+    }
+
+    pipe_config.vertexShaderPath = vertex_shader_path.c_str();
+    pipe_config.fragmentShaderPath = fragment_shader_path.c_str();
+
+    pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[0]);
+    pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[1]);
+    pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[2]);
 
     for (uint32_t wire = 0; wire < 2; wire++) {
         for (uint32_t cull = 0; cull < 2; cull++) {
@@ -1474,94 +1311,62 @@ MeshResources createMesh(std::vector<glm::vec3>& vertices, std::vector<uint32_t>
         }
     }
 
-    mesh.ubo.view_projection = view_projection;
-
+    mesh.ubo.view = view;
+    mesh.ubo.projection = projection;
     mesh.uniformBufferSize = sizeof(mesh.ubo);
     mesh.uniformBuffer = vklCreateHostCoherentBufferWithBackingMemory(mesh.uniformBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     vklCopyDataIntoHostCoherentBuffer(mesh.uniformBuffer, &mesh.ubo, mesh.uniformBufferSize);
+
     vklEnablePipelineHotReloading(window, GLFW_KEY_F5);
 
-    VkDescriptorBufferInfo descriptor_buffer_info{};
-    descriptor_buffer_info.buffer = mesh.uniformBuffer;
-    descriptor_buffer_info.offset = 0;
-    descriptor_buffer_info.range = mesh.uniformBufferSize;
+    // Subtask 5.8: Uniform Buffers for Lights
 
-    VkWriteDescriptorSet write_descriptor_set{};
-    write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write_descriptor_set.pNext = nullptr;
-    write_descriptor_set.dstSet = descriptor_set;
-    write_descriptor_set.dstBinding = 0;
-    write_descriptor_set.dstArrayElement = 0;
-    write_descriptor_set.descriptorCount = 1;
-    write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    write_descriptor_set.pImageInfo = nullptr;
-    write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
-    write_descriptor_set.pTexelBufferView = nullptr;
+    // UBO
+    VkDescriptorBufferInfo descriptor_buffer_object_info{};
+    descriptor_buffer_object_info.buffer = mesh.uniformBuffer;
+    descriptor_buffer_object_info.offset = 0;
+    descriptor_buffer_object_info.range = mesh.uniformBufferSize;
 
-    vkUpdateDescriptorSets(vk_device, 1, &write_descriptor_set, 0, nullptr);
+    // directional light
+    VkDescriptorBufferInfo descriptor_buffer_dirLight_info{};
+    descriptor_buffer_dirLight_info.buffer = dirLightBuffer;
+    descriptor_buffer_dirLight_info.range = sizeof(DirectionalLightUBO);
+
+    // point light
+    VkDescriptorBufferInfo descriptor_buffer_pointLight_info{};
+    descriptor_buffer_pointLight_info.buffer = pointLightBuffer;
+    descriptor_buffer_pointLight_info.range = sizeof(PointLightUBO);
+
+    std::array<VkWriteDescriptorSet, 3> write_descriptor_set{};
+    // UBO
+    write_descriptor_set[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set[0].dstSet = descriptor_set;
+    write_descriptor_set[0].dstBinding = 0;
+    write_descriptor_set[0].dstArrayElement = 0;
+    write_descriptor_set[0].descriptorCount = 1;
+    write_descriptor_set[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_descriptor_set[0].pBufferInfo = &descriptor_buffer_object_info;
+
+    // directional light
+    write_descriptor_set[1] = write_descriptor_set[0];
+    write_descriptor_set[1].dstBinding = 1;
+    write_descriptor_set[1].pBufferInfo = &descriptor_buffer_dirLight_info;
+
+    // point light
+    write_descriptor_set[2] = write_descriptor_set[0];
+    write_descriptor_set[2].dstBinding = 2;
+    write_descriptor_set[2].pBufferInfo = &descriptor_buffer_pointLight_info;
+
+    vkUpdateDescriptorSets(vk_device, static_cast<uint32_t>(write_descriptor_set.size()), write_descriptor_set.data(), 0, nullptr);
 
     return mesh;
 }
 
-void buildCylinder(float h, float r, uint32_t n, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices) {
-    // top face
-    vertices.push_back({glm::vec3(0.0f, h * 0.5f, 0.0f)});
-    for (uint32_t i = 0; i < n; ++i) {
-        float angle = float(i) / n * glm::two_pi<float>();
-        float x = r * glm::cos(angle);
-        float z = r * glm::sin(angle);
-        vertices.push_back({glm::vec3(x, h * 0.5f, z)});
-    }
-    uint32_t topCenter = 0;
-    uint32_t topStart = topCenter + 1;
-    for (uint32_t i = 0; i < n; ++i) {
-        uint32_t curr = topStart + i;
-        uint32_t next = topStart + ((i + 1) % n);
-        indices.push_back(topCenter);
-        indices.push_back(next);
-        indices.push_back(curr);
-    }
-
-    // bottom face
-    vertices.push_back({glm::vec3(0.0f, -h * 0.5f, 0.0f)});
-    for (uint32_t i = 0; i < n; ++i) {
-        float angle = float(i) / n * glm::two_pi<float>();
-        float x = r * glm::cos(angle);
-        float z = r * glm::sin(angle);
-        vertices.push_back({glm::vec3(x, -h * 0.5f, z)});
-    }
-    uint32_t bottomCenter = topStart + n;
-    uint32_t bottomStart = bottomCenter + 1;
-    for (uint32_t i = 0; i < n; ++i) {
-        uint32_t curr = bottomStart + i;
-        uint32_t next = bottomStart + ((i + 1) % n);
-        indices.push_back(bottomCenter);
-        indices.push_back(curr);
-        indices.push_back(next);
-    }
-
-    // side faces
-    for (uint32_t i = 0; i < n; ++i) {
-        uint32_t top_curr = topStart + i;
-        uint32_t top_next = topStart + ((i + 1) % n);
-        uint32_t bottom_curr = bottomStart + i;
-        uint32_t bottom_next = bottomStart + ((i + 1) % n);
-
-        indices.push_back(top_curr);
-        indices.push_back(top_next);
-        indices.push_back(bottom_curr);
-
-        indices.push_back(top_next);
-        indices.push_back(bottom_next);
-        indices.push_back(bottom_curr);
-    }
-}
-
-// Subtask 4.2: Sphere Geometry
-void buildSphere(uint32_t n, uint32_t m, float r, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices) {
+// Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
+void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
 
     // north pole
-    vertices.push_back({glm::vec3(0.0f, r, 0.0f)});
+    vertices.push_back({{0.0f, r, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
 
     for (uint32_t i = 1; i < m; ++i) {
         for (uint32_t j = 0; j < n; ++j) {
@@ -1570,12 +1375,14 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<glm::vec3>& vertic
             float x = r * glm::sin(theta) * glm::cos(phi);
             float y = r * glm::cos(theta);
             float z = r * glm::sin(theta) * glm::sin(phi);
-            vertices.push_back({glm::vec3(x, y, z)});
+            glm::vec3 position(x, y, z);
+            glm::vec3 normal = glm::normalize(position);
+            vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}});
         }
     }
 
     // south pole
-    vertices.push_back({glm::vec3(0.0f, -r, 0.0f)});
+    vertices.push_back({{0.0f, -r, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
 
     uint32_t topCenter = 0;
     uint32_t RingStart = topCenter + 1;
@@ -1619,7 +1426,88 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<glm::vec3>& vertic
     }
 }
 
-// Subtask 4.3: Bézier Cylinder Geometry
+// Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
+void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
+    // top face
+    uint32_t topCenter = static_cast<uint32_t>(vertices.size());
+    vertices.push_back({{0.0f, h * 0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
+    uint32_t topStart = static_cast<uint32_t>(vertices.size());
+
+    for (uint32_t i = 0; i < n; ++i) {
+        float angle = float(i) / n * glm::two_pi<float>();
+        float x = r * glm::cos(angle);
+        float z = r * glm::sin(angle);
+        vertices.push_back({{x, h * 0.5f, z}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
+    }
+    for (uint32_t i = 0; i < n; ++i) {
+        uint32_t curr = topStart + i;
+        uint32_t next = topStart + ((i + 1) % n);
+        indices.push_back(topCenter);
+        indices.push_back(next);
+        indices.push_back(curr);
+    }
+
+    // bottom face
+    uint32_t bottomCenter = static_cast<uint32_t>(vertices.size());
+    vertices.push_back({{0.0f, -h * 0.5f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
+    uint32_t bottomStart = static_cast<uint32_t>(vertices.size());
+
+    for (uint32_t i = 0; i < n; ++i) {
+        float angle = float(i) / n * glm::two_pi<float>();
+        float x = r * glm::cos(angle);
+        float z = r * glm::sin(angle);
+        vertices.push_back({{x, -h * 0.5f, z}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
+    }
+    for (uint32_t i = 0; i < n; ++i) {
+        uint32_t curr = bottomStart + i;
+        uint32_t next = bottomStart + ((i + 1) % n);
+        indices.push_back(bottomCenter);
+        indices.push_back(curr);
+        indices.push_back(next);
+    }
+
+    // side faces
+    for (uint32_t i = 0; i < n; ++i) {
+        float angle = float(i) / n * glm::two_pi<float>();
+        float x = r * glm::cos(angle);
+        float z = r * glm::sin(angle);
+        glm::vec3 normal = glm::normalize(glm::vec3(x, 0.0f, z));
+
+        vertices.push_back({{x, h * 0.5f, z}, normal, {0.0f, 0.0f, 0.0f}});
+        vertices.push_back({{x, -h * 0.5f, z}, normal, {0.0f, 0.0f, 0.0f}});
+    }
+
+    /*for (uint32_t i = 0; i < n; ++i) {
+        uint32_t top_curr = topStart + i;
+        uint32_t top_next = topStart + ((i + 1) % n);
+        uint32_t bottom_curr = bottomStart + i;
+        uint32_t bottom_next = bottomStart + ((i + 1) % n);
+
+        indices.push_back(top_curr);
+        indices.push_back(top_next);
+        indices.push_back(bottom_curr);
+
+        indices.push_back(top_next);
+        indices.push_back(bottom_next);
+        indices.push_back(bottom_curr);
+    }*/
+    uint32_t sideStart = vertices.size() - 2 * n;
+
+    for (uint32_t i = 0; i < n; ++i) {
+        uint32_t curr = sideStart + 2 * i;
+        uint32_t next = sideStart + 2 * ((i + 1) % n);
+
+        indices.push_back(curr);
+        indices.push_back(next);
+        indices.push_back(curr + 1);
+
+        indices.push_back(next);
+        indices.push_back(next + 1);
+        indices.push_back(curr + 1);
+    }
+}
+
+// Subtask 4.3 - 5.5: Bézier Cylinder Geometry with normal vectors
 
 // de Casteljau algorithm
 glm::vec3 bezierPoint(std::vector<glm::vec3>& vertices, float t) {
@@ -1642,7 +1530,7 @@ glm::vec3 derivativeBezierPoint(std::vector<glm::vec3>& vertices, float t) {
     return bezierPoint(vertices_temp, t);
 }
 
-void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>& controlPoints, std::vector<glm::vec3>& vertices, std::vector<uint32_t>& indices) {
+void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>& controlPoints, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
     if (controlPoints.size() < 2) {
         throw std::runtime_error("Need at least 2 control points");
     }
@@ -1688,14 +1576,31 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
             float theta = glm::two_pi<float>() * float(j) / float(n);
             glm::vec3 local_dir = glm::cos(theta) * normals[i] + glm::sin(theta) * binormals[i];
             glm::vec3 position = centers[i] + r * local_dir;
-            vertices.push_back(position);
+            glm::vec3 normal = glm::normalize(local_dir);
+            vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}});
         }
     }
-    vertices.push_back(centers[0]);
-    vertices.push_back(centers[s]);
 
-    uint32_t topCenter = n_circles * n;
-    uint32_t bottomCenter = topCenter + 1;
+    for (uint32_t j = 0; j < n; ++j) {
+        float theta = glm::two_pi<float>() * float(j) / float(n);
+        glm::vec3 local_dir = glm::cos(theta) * normals[0] + glm::sin(theta) * binormals[0];
+        glm::vec3 position = centers[0] + r * local_dir;
+        glm::vec3 normal = -tangents[0];
+        vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}});
+    }
+
+    for (uint32_t j = 0; j < n; ++j) {
+        float theta = glm::two_pi<float>() * float(j) / float(n);
+        glm::vec3 local_dir = glm::cos(theta) * normals[s] + glm::sin(theta) * binormals[s];
+        glm::vec3 position = centers[s] + r * local_dir;
+        glm::vec3 normal = tangents[s];
+        vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}});
+    }
+
+    uint32_t topCenter = vertices.size();
+    vertices.push_back({centers[0], -tangents[0], {0.0f, 0.0f, 0.0f}});
+    uint32_t bottomCenter = vertices.size();
+    vertices.push_back({centers[s], -tangents[s], {0.0f, 0.0f, 0.0f}});
     uint32_t bottomOffset = s * n;
 
     // indices: side faces
