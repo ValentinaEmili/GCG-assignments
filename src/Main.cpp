@@ -778,14 +778,14 @@ int main(int argc, char** argv) {
     MeshResources sphere = SetupMesh(sphere_vertices, sphere_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_sphere, descriptor_set_layout_binding,
         dirLightBuffer, pointLightBuffer, ShadingMode::Gouraud, vk_device,
-        glm::vec3(-0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f));
 
     VkDescriptorSet descriptor_set_sphere_2{};
     MeshResources sphere_2 = SetupMesh(sphere_vertices, sphere_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_sphere_2, descriptor_set_layout_binding,
         dirLightBuffer, pointLightBuffer, ShadingMode::Phong, vk_device,
-        glm::vec3(0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(-0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f));
 
     // Subtask 4.3 - 5.5: Bézier Cylinder Geometry with normal vectors

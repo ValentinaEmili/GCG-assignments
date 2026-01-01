@@ -70,41 +70,40 @@ void main() {
     vec3 ambient = ka * vec3(1.0f);
 
     vec3 V = normalize(UBO.camera_pos.xyz - outPosition);
-    //if (dot(V, N) < 0.0f) {
-    //    N = -N;
-    //}
+    vec3 N = normalize(outNormal);
 
     if (UBO.userInput[0] == 1) {
-        vec3 scaledNormal = 0.5f * outNormal + 0.5f;
+        vec3 scaledNormal = 0.5f * N + 0.5f;
         fragColor = vec4(pow(scaledNormal, vec3(2.2)), 1.0f);
         return;
     }
 
     // directional light
     vec3 Ld = normalize(-dirLightUBO.direction.xyz);
-    float diff_dir = max(dot(outNormal, Ld), 0.0f);
-    vec3 Rd = reflect(-Ld, outNormal);
+    float diff_dir = max(dot(N, Ld), 0.0f);
+    vec3 Rd = reflect(-Ld, N);
     float spec_dir = pow(max(dot(Rd, V), 0.0f), alpha);
 
     // point light
     vec3 Lp = normalize(pointLightUBO.position.xyz - outPosition);
     float dist = length(pointLightUBO.position.xyz - outPosition);
-    float diff_point = max(dot(outNormal, Lp), 0.0f);
-    vec3 Rp = reflect(-Lp, outNormal);
+    float diff_point = max(dot(N, Lp), 0.0f);
+    vec3 Rp = reflect(-Lp, N);
     float spec_point = pow(max(dot(Rp, V), 0.0f), alpha);
 
     float attenuation = 1.0f / (pointLightUBO.attenuation.x + pointLightUBO.attenuation.y * dist + pointLightUBO.attenuation.z * dist * dist);
     vec3 diffuse = kd * (diff_dir * dirLightUBO.color.rgb + diff_point * pointLightUBO.color.rgb * attenuation);
     vec3 specular = ks * (spec_dir * dirLightUBO.color.rgb + spec_point * pointLightUBO.color.rgb * attenuation);
 
-    vec3 result_color = (ambient + diffuse + specular) * outColor;
+    //vec3 result_color = (ambient + diffuse + specular) * outColor;
+    vec3 result_color = (ambient + diffuse) * outColor + specular;
 
     if (UBO.userInput[1] == 1) {
         float F0 = 0.1f;
-        float cos_theta = max(dot(outNormal, V), 0.0f);
+        float cos_theta = max(dot(N, V), 0.0f);
         float fresnel_coeff = F0 + (1.0f - F0) * pow(1.0f - cos_theta, 5.0f);
 
-        vec3 outDirection = clampedReflect(-V, outNormal);
+        vec3 outDirection = clampedReflect(-V, N);
         vec3 reflection_color = getCornellBoxReflectionColor(outPosition, outDirection);
         vec3 color = mix(result_color, reflection_color, fresnel_coeff);
         fragColor = vec4(color, 1.0f);
