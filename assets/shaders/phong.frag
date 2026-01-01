@@ -84,7 +84,6 @@ void main() {
     float ks = UBO.material.z;
     float alpha = UBO.material.w;
 
-
     vec3 ambientLight = ka * vec3(1.0f);
 
     // directional light

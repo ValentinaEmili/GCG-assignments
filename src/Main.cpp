@@ -83,7 +83,7 @@ VkSurfaceTransformFlagBitsKHR getSurfaceTransform(VkPhysicalDevice physical_devi
 void errorCallbackFromGlfw(int error, const char* description) { std::cout << "GLFW error " << error << ": " << description << std::endl; }
 
 bool is_wireframe = false;
-int cull_mode_idx = 0; // 0: NONE; 1: BACK
+int cull_mode_idx = 0;
 bool draw_normals = false;
 bool draw_fresnel = true;
 

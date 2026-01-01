@@ -5,7 +5,7 @@ layout(location = 2) in vec3 inColor;
 
 layout(location = 0) out vec3 outColor;
 layout(location = 1) out vec3 outNormal;
-layout(location = 2) out vec3 outPosition;
+layout(location = 2) out vec4 outPosition;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4 color;
@@ -17,9 +17,9 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 } UBO;
 
 void main() {
-    outNormal = normalize(mat3(UBO.model) * inNormal);outNormal = normalize(mat3(UBO.model) * inNormal);
-    //outNormal = normalize(transpose(inverse(mat3(UBO.model))) * inNormal);
+    //outNormal = normalize(mat3(UBO.model) * inNormal);
+    outNormal = normalize(transpose(inverse(mat3(UBO.model))) * inNormal);
     outColor = inColor;
-    outPosition = (UBO.model * vec4(inPosition, 1.0)).xyz;
-    gl_Position = UBO.projection * UBO.view * vec4(inPosition, 1.0);
+    outPosition = UBO.model * vec4(inPosition, 1.0);
+    gl_Position = UBO.projection * UBO.view * UBO.model * vec4(inPosition, 1.0);
 }
