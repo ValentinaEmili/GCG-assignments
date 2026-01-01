@@ -1579,6 +1579,7 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
         }
     }
 
+    uint32_t topCapStart = static_cast<uint32_t>(vertices.size());
     for (uint32_t j = 0; j < n; ++j) {
         float theta = glm::two_pi<float>() * float(j) / float(n);
         glm::vec3 local_dir = glm::cos(theta) * normals[0] + glm::sin(theta) * binormals[0];
@@ -1586,7 +1587,10 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
         glm::vec3 normal = -tangents[0];
         vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}});
     }
+    uint32_t topCenter = vertices.size();
+    vertices.push_back({centers[0], -tangents[0], {0.0f, 0.0f, 0.0f}});
 
+    uint32_t bottomCapStart = static_cast<uint32_t>(vertices.size());
     for (uint32_t j = 0; j < n; ++j) {
         float theta = glm::two_pi<float>() * float(j) / float(n);
         glm::vec3 local_dir = glm::cos(theta) * normals[s] + glm::sin(theta) * binormals[s];
@@ -1594,12 +1598,8 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
         glm::vec3 normal = tangents[s];
         vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}});
     }
-
-    uint32_t topCenter = vertices.size();
-    vertices.push_back({centers[0], -tangents[0], {0.0f, 0.0f, 0.0f}});
     uint32_t bottomCenter = vertices.size();
-    vertices.push_back({centers[s], -tangents[s], {0.0f, 0.0f, 0.0f}});
-    uint32_t bottomOffset = s * n;
+    vertices.push_back({centers[s], tangents[s], {0.0f, 0.0f, 0.0f}});
 
     // indices: side faces
     for (uint32_t i = 0; i < s; ++i) {
@@ -1621,8 +1621,8 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
 
     // indices: first circle
     for (uint32_t j = 0; j < n; ++j) {
-        uint32_t curr = j;
-        uint32_t next = (j + 1) % n;
+        uint32_t curr = topCapStart + j;
+        uint32_t next = topCapStart + (j + 1) % n;
         indices.push_back(topCenter);
         indices.push_back(next);
         indices.push_back(curr);
@@ -1630,8 +1630,8 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
 
     // indices: last circle
     for (uint32_t j = 0; j < n; ++j) {
-        uint32_t curr = bottomOffset + j;
-        uint32_t next = bottomOffset + (j + 1) % n;
+        uint32_t curr = bottomCapStart + j;
+        uint32_t next = bottomCapStart + (j + 1) % n;
         indices.push_back(bottomCenter);
         indices.push_back(curr);
         indices.push_back(next);
