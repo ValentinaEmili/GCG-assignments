@@ -17,7 +17,9 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 } UBO;
 
 void main() {
-    outNormal = normalize(mat3(UBO.model) * inNormal);;
+    outNormal = normalize(mat3(UBO.model) * inNormal);outNormal = normalize(mat3(UBO.model) * inNormal);
+    //outNormal = normalize(transpose(inverse(mat3(UBO.model))) * inNormal);
     outColor = inColor;
+    outPosition = (UBO.model * vec4(inPosition, 1.0)).xyz;
     gl_Position = UBO.projection * UBO.view * vec4(inPosition, 1.0);
 }

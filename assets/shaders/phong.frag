@@ -63,20 +63,27 @@ vec3 clampedReflect(vec3 I, vec3 N) {
 }
 
 void main() {
+    vec3 N = normalize(outNormal);
+    vec3 V = normalize(UBO.camera_pos.xyz - outPosition);
+    float facing = dot(V, N);
+
+    if (facing < 0.0f) {
+        N = -N;
+    }
+
     if (UBO.userInput.x == 1) {
-        vec3 scaledNormal = 0.5f * outNormal + 0.5f;
+        vec3 scaledNormal = 0.5f * N + 0.5f;
         fragColor = vec4(pow(scaledNormal[0], 2.2), pow(scaledNormal[1], 2.2), pow(scaledNormal[2], 2.2), 1.0f);
         return;
     }
-    vec4 output_color = (UBO.userInput[2] == 1) ? vec4(outColor, 1.0): UBO.color;
+
+    vec3 objectColor = (UBO.userInput.z == 1) ? outColor : UBO.color.rgb;
 
     float ka = UBO.material.x;
     float kd = UBO.material.y;
     float ks = UBO.material.z;
     float alpha = UBO.material.w;
 
-    vec3 N = outNormal;
-    vec3 V = normalize(UBO.camera_pos.xyz - outPosition);
 
     vec3 ambientLight = ka * vec3(1.0f);
 
@@ -98,19 +105,19 @@ void main() {
 
     vec3 global_illumination = ambientLight + directional_illumination + point_light_illumination;
 
-    float facing = dot(normalize(outNormal), V);
     if (UBO.userInput.y == 1) {
         float F0 = 0.1f;
-        float cos_theta = max(dot(normalize(outNormal), V), 0.0f);
+        float cos_theta = max(dot(normalize(N), V), 0.0f);
         float fresnel_coeff = F0 + (1.0f - F0) * pow(1.0f - cos_theta, 5.0f);
 
-        vec3 outDirection = clampedReflect(-V, normalize(outNormal));
+        vec3 outDirection = clampedReflect(-V, N);
         vec3 reflection_color = getCornellBoxReflectionColor(outPosition, outDirection);
 
-        vec3 color = output_color.rgb * global_illumination + fresnel_coeff * reflection_color;
+        vec3 color = mix(objectColor * global_illumination, reflection_color, fresnel_coeff);
+        //vec3 color = output_color.rgb * global_illumination + fresnel_coeff * reflection_color;
         fragColor = vec4(color, 1.0f);
     }
     else {
-        fragColor = output_color * vec4(global_illumination, 1.0f);
+        fragColor = vec4(global_illumination * objectColor, 1.0f);
     }
 }

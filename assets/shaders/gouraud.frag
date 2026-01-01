@@ -57,6 +57,7 @@ void main() {
         fragColor = vec4(pow(scaledNormal[0], 2.2), pow(scaledNormal[1], 2.2), pow(scaledNormal[2], 2.2), 1.0f);
         return;
     }
+    vec3 objectColor = (UBO.userInput.z == 1) ? outColor : UBO.color.rgb;
 
     if (UBO.userInput.y == 1) {
         float F0 = 0.1f;
@@ -67,10 +68,10 @@ void main() {
         vec3 outDirectionWS = clampedReflect(-V, normalize(outNormalWS));
         vec3 reflection_color = getCornellBoxReflectionColor(outPositionWS, outDirectionWS);
 
-        vec3 color = outColor + fresnel_coeff * reflection_color;
+        vec3 color = mix(objectColor, reflection_color, fresnel_coeff);
         fragColor = vec4(color, 1.0f);
     }
      else {
-        fragColor = vec4(outColor, 1.0f);
+        fragColor = vec4(objectColor, 1.0f);
     }
 }

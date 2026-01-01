@@ -28,14 +28,19 @@ layout(set = 0, binding = 2) uniform PointLightUBO {
 
 void main() {
     vec3 V = normalize(UBO.camera_pos.xyz - outPosition);
+    vec3 N = normalize(outNormal);
+    float facing = dot(V, N);
 
+    // normals view
     if (UBO.userInput[0] == 1) {
-        vec3 scaledNormal = 0.5f * outNormal + 0.5f;
+        if (facing < 0.0f) {
+            N = -N;
+        }
+        vec3 scaledNormal = 0.5f * N + 0.5f;
         fragColor = vec4(pow(scaledNormal[0], 2.2), pow(scaledNormal[1], 2.2), pow(scaledNormal[2], 2.2), 1.0f);
         return;
     }
 
-    float facing = dot(V, outNormal);
     if (facing > 0.0f) {
         fragColor = vec4(outColor, 1.0f);
     }
@@ -48,8 +53,6 @@ void main() {
 
         vec3 worldPosition = vec3(UBO.model * vec4(outPosition, 1.0));
 
-        vec3 N = normalize(transpose(inverse(mat3(UBO.model))) * outNormal);
-        vec3 V = normalize(UBO.camera_pos.xyz - worldPosition);
 
         vec3 ambientLight = ka * vec3(1.0f);
 

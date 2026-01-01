@@ -38,8 +38,13 @@ void main() {
 
     vec3 worldPosition = vec3(UBO.model * vec4(inPosition, 1.0));
 
-    vec3 N = normalize(transpose(inverse(mat3(UBO.model))) * inNormal);
     vec3 V = normalize(UBO.camera_pos.xyz - worldPosition);
+    vec3 N = normalize(mat3(UBO.model) * inNormal);
+    //vec3 N = normalize(transpose(inverse(mat3(UBO.model))) * inNormal);
+    float facing = dot(V, N);
+    if (facing < 0.0f) {
+        N = -N;
+    }
 
     vec3 ambientLight = ka * vec3(1.0f);
 
