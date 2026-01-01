@@ -1,7 +1,7 @@
 #version 450
 layout(location = 0) in vec3 outColor;
 layout(location = 1) in vec3 outNormal;
-layout(location = 2) in vec4 outPosition;
+layout(location = 2) in vec3 outPosition;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -26,47 +26,48 @@ layout(set = 0, binding = 2) uniform PointLightUBO {
     vec4 attenuation;
 } pointLightUBO;
 
+
 void main() {
-    vec3 V = normalize(UBO.camera_pos.xyz - outPosition.xyz);
+    vec3 V = normalize(UBO.camera_pos.xyz - outPosition);
     vec3 N = normalize(outNormal);
     float facing = dot(V, N);
     if (facing < 0.0f) {
         N = -N;
     }
+    else {
 
+    }
     // normals view
     if (UBO.userInput[0] == 1) {
         vec3 scaledNormal = 0.5f * N + 0.5f;
-        fragColor = vec4(pow(scaledNormal[0], 2.2), pow(scaledNormal[1], 2.2), pow(scaledNormal[2], 2.2), 1.0f);
+        fragColor = vec4(pow(scaledNormal, vec3(2.2)), 1.0f);
         return;
     }
-
     float ka = UBO.material.x;
     float kd = UBO.material.y;
     float ks = UBO.material.z;
     float alpha = UBO.material.w;
-
-    vec3 ambientLight = ka * vec3(1.0f);
-
+    vec3 ambient = ka * vec3(1.0f);
     vec3 output_color = (UBO.userInput[2] == 1) ? outColor : UBO.color.rgb;
 
-    // directional light
+    /// directional light
     vec3 Ld = normalize(-dirLightUBO.direction.xyz);
-    vec3 Rd = 2.0f * max(dot(Ld, N), 0.0f) * N - Ld;
-    vec3 specularLight = ks * pow(max(dot(Rd, V), 0.0f), alpha) * dirLightUBO.color.rgb;
-    vec3 diffuseLight = kd * max(dot(Ld, N), 0.0f) * dirLightUBO.color.rgb;
-    vec3 directional_illumination = diffuseLight + specularLight;
+    float diff_dir = max(dot(N, Ld), 0.0f);
+    vec3 Rd = reflect(-Ld, N);
+    float spec_dir = pow(max(dot(Rd, V), 0.0f), alpha);
 
     // point light
-    float dist = length(pointLightUBO.position - outPosition);
-    vec3 Lp = normalize(pointLightUBO.position.xyz - outPosition.xyz);
-    vec3 Rp = 2.0f * max(dot(Lp, N), 0.0f) * N - Lp;
-    specularLight = ks * pow(max(dot(Rp, V), 0.0f), alpha) * pointLightUBO.color.rgb;
-    diffuseLight = kd * max(dot(Lp, N), 0.0f) * pointLightUBO.color.rgb;
-    float attenuation = 1.0f / (pointLightUBO.attenuation.x + pointLightUBO.attenuation.y * dist + pointLightUBO.attenuation.z * dist * dist);
-    vec3 point_light_illumination = attenuation * (diffuseLight + specularLight);
+    vec3 Lp = normalize(pointLightUBO.position.xyz - outPosition);
+    float dist = length(pointLightUBO.position.xyz - outPosition);
+    float diff_point = max(dot(N, Lp), 0.0f);
+    vec3 Rp = reflect(-Lp, N);
+    float spec_point = pow(max(dot(Rp, V), 0.0f), alpha);
 
-    vec3 global_illumination = ambientLight + directional_illumination + point_light_illumination;
+    float attenuation = 1.0f / (pointLightUBO.attenuation.x + pointLightUBO.attenuation.y * dist + pointLightUBO.attenuation.z * dist * dist);
+    vec3 diffuse = kd * (diff_dir * dirLightUBO.color.rgb + diff_point * pointLightUBO.color.rgb * attenuation);
+    vec3 specular = ks * (spec_dir * dirLightUBO.color.rgb + spec_point * pointLightUBO.color.rgb * attenuation);
+
+    vec3 global_illumination = ambient + diffuse + specular;
 
     if (facing > 0.0f) {
         fragColor = vec4(output_color, 1.0f);

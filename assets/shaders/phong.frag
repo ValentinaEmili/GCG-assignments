@@ -63,60 +63,53 @@ vec3 clampedReflect(vec3 I, vec3 N) {
 }
 
 void main() {
-    vec3 N = normalize(outNormal);
-    vec3 V = normalize(UBO.camera_pos.xyz - outPosition);
-    float facing = dot(V, N);
-
-    if (facing < 0.0f) {
-        N = -N;
-    }
-
-    if (UBO.userInput.x == 1) {
-        vec3 scaledNormal = 0.5f * N + 0.5f;
-        fragColor = vec4(pow(scaledNormal[0], 2.2), pow(scaledNormal[1], 2.2), pow(scaledNormal[2], 2.2), 1.0f);
-        return;
-    }
-
-    vec3 objectColor = (UBO.userInput.z == 1) ? outColor : UBO.color.rgb;
-
     float ka = UBO.material.x;
     float kd = UBO.material.y;
     float ks = UBO.material.z;
     float alpha = UBO.material.w;
+    vec3 ambient = ka * vec3(1.0f);
 
-    vec3 ambientLight = ka * vec3(1.0f);
+    vec3 V = normalize(UBO.camera_pos.xyz - outPosition);
+    //if (dot(V, N) < 0.0f) {
+    //    N = -N;
+    //}
+
+    if (UBO.userInput[0] == 1) {
+        vec3 scaledNormal = 0.5f * outNormal + 0.5f;
+        fragColor = vec4(pow(scaledNormal, vec3(2.2)), 1.0f);
+        return;
+    }
 
     // directional light
-    vec3 L = normalize(-dirLightUBO.direction.xyz);
-    vec3 R = 2.0f * max(dot(L, N), 0.0f) * N - L;
-    vec3 specularLight = ks * pow(max(dot(R, V), 0.0f), alpha) * dirLightUBO.color.rgb;
-    vec3 diffuseLight = kd * max(dot(L, N), 0.0f) * dirLightUBO.color.rgb;
-    vec3 directional_illumination = diffuseLight + specularLight;
+    vec3 Ld = normalize(-dirLightUBO.direction.xyz);
+    float diff_dir = max(dot(outNormal, Ld), 0.0f);
+    vec3 Rd = reflect(-Ld, outNormal);
+    float spec_dir = pow(max(dot(Rd, V), 0.0f), alpha);
 
     // point light
+    vec3 Lp = normalize(pointLightUBO.position.xyz - outPosition);
     float dist = length(pointLightUBO.position.xyz - outPosition);
-    L = normalize(pointLightUBO.position.xyz - outPosition);
-    R = 2.0f * max(dot(L, N), 0.0f) * N - L;
-    specularLight = ks * pow(max(dot(R, V), 0.0f), alpha) * pointLightUBO.color.rgb;
-    diffuseLight = kd * max(dot(L, N), 0.0f) * pointLightUBO.color.rgb;
+    float diff_point = max(dot(outNormal, Lp), 0.0f);
+    vec3 Rp = reflect(-Lp, outNormal);
+    float spec_point = pow(max(dot(Rp, V), 0.0f), alpha);
+
     float attenuation = 1.0f / (pointLightUBO.attenuation.x + pointLightUBO.attenuation.y * dist + pointLightUBO.attenuation.z * dist * dist);
-    vec3 point_light_illumination = attenuation * (diffuseLight + specularLight);
+    vec3 diffuse = kd * (diff_dir * dirLightUBO.color.rgb + diff_point * pointLightUBO.color.rgb * attenuation);
+    vec3 specular = ks * (spec_dir * dirLightUBO.color.rgb + spec_point * pointLightUBO.color.rgb * attenuation);
 
-    vec3 global_illumination = ambientLight + directional_illumination + point_light_illumination;
+    vec3 result_color = (ambient + diffuse + specular) * outColor;
 
-    if (UBO.userInput.y == 1) {
+    if (UBO.userInput[1] == 1) {
         float F0 = 0.1f;
-        float cos_theta = max(dot(normalize(N), V), 0.0f);
+        float cos_theta = max(dot(outNormal, V), 0.0f);
         float fresnel_coeff = F0 + (1.0f - F0) * pow(1.0f - cos_theta, 5.0f);
 
-        vec3 outDirection = clampedReflect(-V, N);
+        vec3 outDirection = clampedReflect(-V, outNormal);
         vec3 reflection_color = getCornellBoxReflectionColor(outPosition, outDirection);
-
-        vec3 color = mix(objectColor * global_illumination, reflection_color, fresnel_coeff);
-        //vec3 color = output_color.rgb * global_illumination + fresnel_coeff * reflection_color;
+        vec3 color = mix(result_color, reflection_color, fresnel_coeff);
         fragColor = vec4(color, 1.0f);
     }
     else {
-        fragColor = vec4(global_illumination * objectColor, 1.0f);
+        fragColor = vec4(result_color, 1.0f);
     }
 }

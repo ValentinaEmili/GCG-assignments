@@ -698,6 +698,7 @@ int main(int argc, char** argv) {
     VKL_CHECK_VULKAN_ERROR(des_set_layout_result);
 
     // Subtask 5.8: Uniform Buffers for Lights
+
     DirectionalLightUBO dirLightUBO{};
     dirLightUBO.color = glm::vec4(0.85f, 0.85f, 0.85f, 1.0f);
     dirLightUBO.direction = glm::vec4(glm::normalize(glm::vec3(0.0f, 1.0f, -1.0f)), 0.0f);
@@ -710,7 +711,6 @@ int main(int argc, char** argv) {
     pointLightUBO.attenuation = glm::vec4(1.0f, 0.4f, 0.1f, 0.0f);
     VkBuffer pointLightBuffer = vklCreateHostCoherentBufferWithBackingMemory(sizeof(PointLightUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     vklCopyDataIntoHostCoherentBuffer(pointLightBuffer, &pointLightUBO, sizeof(PointLightUBO));
-
     // Subtask 2.4: Viewing and Projection
     std::string init_camera_filepath = "assets/settings/camera_front.ini";
     if (cmdline_args.init_camera) {
@@ -838,8 +838,6 @@ int main(int argc, char** argv) {
 
         // Subtask 3.4: Command Buffer Recording
         VkCommandBuffer cmdBuffer = vklGetCurrentCommandBuffer();
-
-        vklCopyDataIntoHostCoherentBuffer(pointLightBuffer, &pointLightUBO, sizeof(PointLightUBO));
 
         VkDeviceSize offsets[] = {0};
         // Subtask 3.5 - 5.1: Cube Geometry with normals
