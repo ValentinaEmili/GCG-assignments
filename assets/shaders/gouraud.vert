@@ -96,7 +96,6 @@ void main() {
     vec3 diffuse = kd * (diff_dir * dirLightUBO.color.rgb + diff_point * pointLightUBO.color.rgb * attenuation);
     vec3 specular = ks * (spec_dir * dirLightUBO.color.rgb + spec_point * pointLightUBO.color.rgb * attenuation);
 
-    //vec3 result_color = (ambient + diffuse + specular) * output_color;
     vec3 result_color = (ambient + diffuse) * output_color + specular;
 
     // fresnel effect

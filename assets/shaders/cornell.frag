@@ -67,12 +67,10 @@ void main() {
     vec3 diffuse = kd * (diff_dir * dirLightUBO.color.rgb + diff_point * pointLightUBO.color.rgb * attenuation);
     vec3 specular = ks * (spec_dir * dirLightUBO.color.rgb + spec_point * pointLightUBO.color.rgb * attenuation);
 
-    vec3 global_illumination = ambient + diffuse + specular;
-
     if (facing > 0.0f) {
         fragColor = vec4(output_color, 1.0f);
     }
     else {
-        fragColor = vec4(global_illumination * output_color, 1.0f);
+        fragColor = vec4((ambient + diffuse) * output_color + specular, 1.0f);
     }
 }

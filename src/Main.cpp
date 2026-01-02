@@ -736,19 +736,8 @@ int main(int argc, char** argv) {
 
     glm::mat4 translation = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, zoom));
     glm::mat4 camera_to_world = rotation * translation;
-    // view-projection matrix
     glm::mat4 view = glm::inverse(camera_to_world);
-    //glm::mat4 view_projection = projection * view;
 
-    // Subtask 3.5 - 5.1: Cube Geometry with normal vectors
-    /*
-    VkDescriptorSet descriptor_set_cube{};
-    MeshResources cube = SetupMesh(cube_vertices, cube_indices, view, projection, window,
-        descriptor_pool, descriptor_set_layout, descriptor_set_cube, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, ShadingMode::Gouraud, vk_device,
-        glm::vec3(-0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
-        glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f), 45.0f);
-    */
     // Subtask 3.6 - 3.7 - 5.2: Cornell Box with normal vectors
     VkDescriptorSet descriptor_set_cornell{};
     MeshResources cornell_cube = SetupMesh(cornell_vertices, cornell_indices, view, projection, window,
@@ -831,32 +820,13 @@ int main(int argc, char** argv) {
         view[2] = glm::vec4(-direction, 0.0f);
         view[3] = glm::vec4(camera_pos, 1.0f);
         view = glm::inverse(view);
-        //view_projection = projection * view;
 
         vklWaitForNextSwapchainImage();
         vklStartRecordingCommands();
 
         // Subtask 3.4: Command Buffer Recording
         VkCommandBuffer cmdBuffer = vklGetCurrentCommandBuffer();
-
         VkDeviceSize offsets[] = {0};
-        // Subtask 3.5 - 5.1: Cube Geometry with normals
-        /*
-        cube.ubo.view = view;
-        cube.ubo.projection = projection;
-        cube.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
-        cube.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
-        vklCopyDataIntoHostCoherentBuffer(cube.uniformBuffer, &cube.ubo, cube.uniformBufferSize);
-
-        VkPipeline cube_pipeline = cube.pipelines[is_wireframe * 2 + cull_mode_idx];
-        VkPipelineLayout cube_pipeline_layout = vklGetLayoutForPipeline(cube_pipeline);
-        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cube_pipeline);
-
-        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cube.vertexBuffer, offsets);
-        vkCmdBindIndexBuffer(cmdBuffer, cube.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cube_pipeline_layout, 0, 1, &descriptor_set_cube, 0, nullptr);
-        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
-        */
 
         // Subtask 3.6 - 3.7 - 5.2: Cornell Box
         cornell_cube.ubo.view = view;
@@ -963,17 +933,12 @@ int main(int argc, char** argv) {
     // Subtask 1.12: Cleanup
     /* --------------------------------------------- */
     for (uint32_t i = 0; i < 4; i++) {
-        //vklDestroyGraphicsPipeline(cube.pipelines[i]);
         vklDestroyGraphicsPipeline(cornell_cube.pipelines[i]);
         vklDestroyGraphicsPipeline(cylinder.pipelines[i]);
         vklDestroyGraphicsPipeline(sphere.pipelines[i]);
         vklDestroyGraphicsPipeline(sphere_2.pipelines[i]);
         vklDestroyGraphicsPipeline(bezier_cylinder.pipelines[i]);
     }
-
-    //vklDestroyHostCoherentBufferAndItsBackingMemory(cube.uniformBuffer);
-    //vklDestroyHostCoherentBufferAndItsBackingMemory(cube.vertexBuffer);
-    //vklDestroyHostCoherentBufferAndItsBackingMemory(cube.indexBuffer);
 
     vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_cube.uniformBuffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_cube.vertexBuffer);
@@ -1475,22 +1440,7 @@ void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, 
         vertices.push_back({{x, -h * 0.5f, z}, normal, {0.0f, 0.0f, 0.0f}});
     }
 
-    /*for (uint32_t i = 0; i < n; ++i) {
-        uint32_t top_curr = topStart + i;
-        uint32_t top_next = topStart + ((i + 1) % n);
-        uint32_t bottom_curr = bottomStart + i;
-        uint32_t bottom_next = bottomStart + ((i + 1) % n);
-
-        indices.push_back(top_curr);
-        indices.push_back(top_next);
-        indices.push_back(bottom_curr);
-
-        indices.push_back(top_next);
-        indices.push_back(bottom_next);
-        indices.push_back(bottom_curr);
-    }*/
     uint32_t sideStart = vertices.size() - 2 * n;
-
     for (uint32_t i = 0; i < n; ++i) {
         uint32_t curr = sideStart + 2 * i;
         uint32_t next = sideStart + 2 * ((i + 1) % n);

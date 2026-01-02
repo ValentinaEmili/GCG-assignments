@@ -95,7 +95,6 @@ void main() {
     vec3 diffuse = kd * (diff_dir * dirLightUBO.color.rgb + diff_point * pointLightUBO.color.rgb * attenuation);
     vec3 specular = ks * (spec_dir * dirLightUBO.color.rgb + spec_point * pointLightUBO.color.rgb * attenuation);
 
-    //vec3 result_color = (ambient + diffuse + specular) * outColor;
     vec3 result_color = (ambient + diffuse) * outColor + specular;
 
     if (UBO.userInput[1] == 1) {
