@@ -120,15 +120,39 @@ struct UniformBufferObject {
 };
 
 // Subtask 5.8: Uniform Buffers for Lights
+constexpr uint32_t MAX_N_LIGHTS = 100;
 struct DirectionalLightUBO {
     alignas(16) glm::vec4 color;
     alignas(16) glm::vec4 direction;
+};
+struct DirectionalLightUBOs {
+    DirectionalLightUBO lights[MAX_N_LIGHTS];
+    alignas(16) uint32_t num_lights;
+    alignas(16) glm::vec3 _pad;
 };
 
 struct PointLightUBO {
     alignas(16) glm::vec4 color;
     alignas(16) glm::vec4 position;
     alignas(16) glm::vec4 attenuation;
+};
+struct PointLightUBOs {
+    PointLightUBO lights[MAX_N_LIGHTS];
+    alignas(16) uint32_t num_lights;
+    alignas(16) glm::vec3 _pad;
+};
+struct SpotLightUBO {
+    alignas(16) glm::vec4 color;
+    alignas(16) glm::vec4 position;
+    alignas(16) glm::vec4 outer_radius;
+    alignas(16) glm::vec4 inner_radius;
+    alignas(16) glm::vec4 direction;
+    alignas(16) glm::vec4 attenuation;
+};
+struct SpotLightUBOs {
+    SpotLightUBO lights[MAX_N_LIGHTS];
+    alignas(16) uint32_t num_lights;
+    alignas(16) glm::vec3 _pad;
 };
 
 // Subtask 5.9 - 5.10: Phong Illumination with Gouraud/Phong Shading
@@ -280,9 +304,11 @@ MeshResources SetupMesh(
     VkDescriptorPool descriptor_pool,
     VkDescriptorSetLayout descriptor_set_layout,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 3>& descriptor_set_layout_binding,
+    //std::array<VkDescriptorSetLayoutBinding, 3>& descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 4>& descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
+    VkBuffer spotLightBuffer,
     ShadingMode shadingMode,
     VkDevice vk_device,
     glm::vec3 translation,
@@ -301,9 +327,11 @@ MeshResources createMesh(
     glm::mat4 projection,
     GLFWwindow* window,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding,
+    //std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 4> descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
+    VkBuffer spotLightBuffer,
     ShadingMode shadingMode,
     VkDevice vk_device);
 
@@ -316,6 +344,13 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
 glm::vec3 bezierPoint(std::vector<glm::vec3>& vertices, float t);
 glm::vec3 derivativeBezierPoint(std::vector<glm::vec3>& vertices, float t);
 void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>& controlPoints, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+
+// Subtask 5.14: Multiple Lights
+VkBuffer setupDirectionalLights(DirectionalLightUBOs& dirLightUBOs, std::vector<glm::vec3> dirLightColors, std::vector<glm::vec3> dirLightDirections);
+VkBuffer setupPointLights(PointLightUBOs& pointLightUBOs, std::vector<glm::vec3> pointLightColors, std::vector<glm::vec3> pointLightPositions, std::vector<glm::vec3> pointLightAttenuations);
+
+// Subtask 5.15: Spotlight
+VkBuffer setupSpotLights(SpotLightUBOs& spotLightUBOs, std::vector<glm::vec3> spotLightColors, std::vector<glm::vec3> spotLightPositions, glm::vec3 spotLightOuterConeRadius, glm::vec3 spotLightInnerConeRadius, std::vector<glm::vec3> spotLightDirections, std::vector<glm::vec3> spotLightAttenuations);
 /* --------------------------------------------- */
 // Main
 /* --------------------------------------------- */
@@ -660,8 +695,9 @@ int main(int argc, char** argv) {
     VKL_LOG("Subtask 1.9 done.");
 
     // Subtask 2.2: Create a Uniform Buffer
-    std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding{};
-    for (uint32_t i = 0; i < 3; i++) {
+    //std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding{};
+    std::array<VkDescriptorSetLayoutBinding, 4> descriptor_set_layout_binding{};
+    for (uint32_t i = 0; i < 4; i++) {
         descriptor_set_layout_binding[i].binding = i;
         descriptor_set_layout_binding[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptor_set_layout_binding[i].descriptorCount = 1;
@@ -698,19 +734,62 @@ int main(int argc, char** argv) {
     VKL_CHECK_VULKAN_ERROR(des_set_layout_result);
 
     // Subtask 5.8: Uniform Buffers for Lights
+    // Subtask 5.14: Multiple Lights
+    DirectionalLightUBOs dirLightUBOs{};
+    std::vector<glm::vec3> dirLightColors {
+        {0.8f, 0.0f, 0.0f},
+        {0.0f, 0.8f, 0.0f},
+        {0.0f, 0.0f, 0.8f}
+    };
+    std::vector<glm::vec3> dirLightDirections {
+        {0.0f, -0.7f, -1.0f},
+        {0.0f, -1.0f, -1.0f},
+        {0.0f, -1.3f, -1.0f}
+    };
+    VkBuffer dirLightBuffer = setupDirectionalLights(dirLightUBOs, dirLightColors, dirLightDirections);
 
-    DirectionalLightUBO dirLightUBO{};
-    dirLightUBO.color = glm::vec4(0.85f, 0.85f, 0.85f, 1.0f);
-    dirLightUBO.direction = glm::vec4(glm::normalize(glm::vec3(0.0f, 1.0f, -1.0f)), 0.0f);
-    VkBuffer dirLightBuffer = vklCreateHostCoherentBufferWithBackingMemory(sizeof(DirectionalLightUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(dirLightBuffer, &dirLightUBO, sizeof(DirectionalLightUBO));
+    PointLightUBOs pointLightUBOs{};
+    std::vector<glm::vec3> pointLightColors {
+    {1.0f, 1.0f, 1.0f},
+    {1.0f, 1.0f, 0.0f},
+    {1.0f, 0.0f, 1.0f}
+    };
+    std::vector<glm::vec3> pointLightPositions {
+    {0.0f, 0.0f, 0.0f},
+    {-2.4f, 0.0f, 0.0f},
+    {2.4f, 0.0f, 0.0f}};
+    std::vector<glm::vec3> pointLightAttenuations {
+    {1.0f, 0.4f, 0.1f},
+    {1.0f, 0.4f, 0.1f},
+    {1.0f, 0.4f, 0.1f},
+    };
+    VkBuffer pointLightBuffer = setupPointLights(pointLightUBOs, pointLightColors, pointLightPositions, pointLightAttenuations);
 
-    PointLightUBO pointLightUBO{};
-    pointLightUBO.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-    pointLightUBO.position = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
-    pointLightUBO.attenuation = glm::vec4(1.0f, 0.4f, 0.1f, 0.0f);
-    VkBuffer pointLightBuffer = vklCreateHostCoherentBufferWithBackingMemory(sizeof(PointLightUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-    vklCopyDataIntoHostCoherentBuffer(pointLightBuffer, &pointLightUBO, sizeof(PointLightUBO));
+    SpotLightUBOs spotLightUBOs{};
+    std::vector<glm::vec3> spotLightColors {
+    {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}
+    };
+    std::vector<glm::vec3> spotLightPositions {
+    {0.0f, 0.25f, 6.0f},
+    {0.15f, 0.35f, 6.0f},
+    {-0.15f, 0.35f, 6.0f}
+    };
+    glm::vec3 spotLightOuterConeRadius = glm::vec3(22, 22, 22);
+    glm::vec3 spotLightInnerConeRadius = glm::vec3(20, 20, 20);
+    std::vector<glm::vec3> spotLightDirections {
+    {0.0f, 0.0f, -1.0f},
+    {0.0f, 0.0f, -1.0f},
+    {0.0f, 0.0f, -1.0f}
+    };
+    std::vector<glm::vec3> spotLightAttenuations {
+    {1.0f, 0.4f, 0.1f},
+{1.0f, 0.4f, 0.1f},
+{1.0f, 0.4f, 0.1f}
+    };
+    VkBuffer spotLightBuffer = setupSpotLights(spotLightUBOs, spotLightColors, spotLightPositions, spotLightOuterConeRadius, spotLightInnerConeRadius, spotLightDirections, spotLightAttenuations);
+
     // Subtask 2.4: Viewing and Projection
     std::string init_camera_filepath = "assets/settings/camera_front.ini";
     if (cmdline_args.init_camera) {
@@ -742,7 +821,7 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_cornell{};
     MeshResources cornell_cube = SetupMesh(cornell_vertices, cornell_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_cornell, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, ShadingMode::Multicolor, vk_device,
+        dirLightBuffer, pointLightBuffer, spotLightBuffer, ShadingMode::Multicolor, vk_device,
         glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.1f, 0.9f, 0.3f, 10.0f), 0.0f, true, false);
 
@@ -754,7 +833,7 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_cylinder{};
     MeshResources cylinder = SetupMesh(cylinder_vertices, cylinder_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_cylinder, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, ShadingMode::Phong, vk_device,
+        dirLightBuffer, pointLightBuffer, spotLightBuffer, ShadingMode::Phong, vk_device,
         glm::vec3(0.6f, 0.3f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.75f, 0.25f, 0.01f, 1.0f), glm::vec4(0.1f, 0.9f, 0.3f, 5.0f));
 
@@ -766,14 +845,14 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_sphere{};
     MeshResources sphere = SetupMesh(sphere_vertices, sphere_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_sphere, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, ShadingMode::Gouraud, vk_device,
+        dirLightBuffer, pointLightBuffer, spotLightBuffer, ShadingMode::Gouraud, vk_device,
         glm::vec3(0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f));
 
     VkDescriptorSet descriptor_set_sphere_2{};
     MeshResources sphere_2 = SetupMesh(sphere_vertices, sphere_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_sphere_2, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, ShadingMode::Phong, vk_device,
+        dirLightBuffer, pointLightBuffer, spotLightBuffer, ShadingMode::Phong, vk_device,
         glm::vec3(-0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f));
 
@@ -792,7 +871,7 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_bezier_cylinder{};
     MeshResources bezier_cylinder = SetupMesh(bezier_cylinder_vertices, bezier_cylinder_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_bezier_cylinder, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, ShadingMode::Phong, vk_device,
+        dirLightBuffer, pointLightBuffer, spotLightBuffer, ShadingMode::Phong, vk_device,
         glm::vec3(-0.6f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.75f, 0.25f, 0.01f, 1.0f), glm::vec4(0.1f, 0.9f, 0.3f, 5.0f));
 
@@ -962,6 +1041,7 @@ int main(int argc, char** argv) {
 
     vklDestroyHostCoherentBufferAndItsBackingMemory(dirLightBuffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(pointLightBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(spotLightBuffer);
 
     vkDestroyDescriptorSetLayout(vk_device, descriptor_set_layout, nullptr);
     vkDestroyDescriptorPool(vk_device, descriptor_pool, nullptr);
@@ -1136,9 +1216,11 @@ MeshResources SetupMesh(
     VkDescriptorPool descriptor_pool,
     VkDescriptorSetLayout descriptor_set_layout,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 3>& descriptor_set_layout_binding,
+    //std::array<VkDescriptorSetLayoutBinding, 3>& descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 4>& descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
+    VkBuffer spotLightBuffer,
     ShadingMode shadingMode,
     VkDevice vk_device,
     glm::vec3 translation,
@@ -1160,7 +1242,7 @@ MeshResources SetupMesh(
     VKL_CHECK_VULKAN_ERROR(res);
 
     MeshResources mesh = createMesh(vertices, indices, view, projection, window,
-        descriptor_set, descriptor_set_layout_binding, dirLightBuffer, pointLightBuffer, shadingMode, vk_device);
+        descriptor_set, descriptor_set_layout_binding, dirLightBuffer, pointLightBuffer, spotLightBuffer, shadingMode, vk_device);
 
     glm::mat4 model = glm::mat4(1.0f);
     if (translate) {
@@ -1190,9 +1272,11 @@ MeshResources createMesh(
     glm::mat4 projection,
     GLFWwindow* window,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding,
+    //std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 4> descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
+    VkBuffer spotLightBuffer,
     ShadingMode shadingMode,
     VkDevice vk_device) {
     if (descriptor_set == VK_NULL_HANDLE) {
@@ -1265,6 +1349,7 @@ MeshResources createMesh(
     pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[0]);
     pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[1]);
     pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[2]);
+    pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[3]);
 
     for (uint32_t wire = 0; wire < 2; wire++) {
         for (uint32_t cull = 0; cull < 2; cull++) {
@@ -1293,14 +1378,20 @@ MeshResources createMesh(
     // directional light
     VkDescriptorBufferInfo descriptor_buffer_dirLight_info{};
     descriptor_buffer_dirLight_info.buffer = dirLightBuffer;
-    descriptor_buffer_dirLight_info.range = sizeof(DirectionalLightUBO);
+    descriptor_buffer_dirLight_info.range = sizeof(DirectionalLightUBOs);
 
     // point light
     VkDescriptorBufferInfo descriptor_buffer_pointLight_info{};
     descriptor_buffer_pointLight_info.buffer = pointLightBuffer;
-    descriptor_buffer_pointLight_info.range = sizeof(PointLightUBO);
+    descriptor_buffer_pointLight_info.range = sizeof(PointLightUBOs);
 
-    std::array<VkWriteDescriptorSet, 3> write_descriptor_set{};
+    // spot light
+    VkDescriptorBufferInfo descriptor_buffer_spotLight_info{};
+    descriptor_buffer_spotLight_info.buffer = spotLightBuffer;
+    descriptor_buffer_spotLight_info.range = sizeof(SpotLightUBOs);
+
+    //std::array<VkWriteDescriptorSet, 3> write_descriptor_set{};
+    std::array<VkWriteDescriptorSet, 4> write_descriptor_set{};
     // UBO
     write_descriptor_set[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write_descriptor_set[0].dstSet = descriptor_set;
@@ -1319,6 +1410,11 @@ MeshResources createMesh(
     write_descriptor_set[2] = write_descriptor_set[0];
     write_descriptor_set[2].dstBinding = 2;
     write_descriptor_set[2].pBufferInfo = &descriptor_buffer_pointLight_info;
+
+    // spot light
+    write_descriptor_set[3] = write_descriptor_set[0];
+    write_descriptor_set[3].dstBinding = 3;
+    write_descriptor_set[3].pBufferInfo = &descriptor_buffer_spotLight_info;
 
     vkUpdateDescriptorSets(vk_device, static_cast<uint32_t>(write_descriptor_set.size()), write_descriptor_set.data(), 0, nullptr);
 
@@ -1586,4 +1682,43 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
         indices.push_back(curr);
         indices.push_back(next);
     }
+}
+
+// Subtask 5.14: Multiple Lights
+VkBuffer setupDirectionalLights(DirectionalLightUBOs& dirLightUBOs, std::vector<glm::vec3> dirLightColors, std::vector<glm::vec3> dirLightDirections) {
+    dirLightUBOs.num_lights = dirLightColors.size();
+    for (uint32_t i = 0; i < dirLightUBOs.num_lights; i++) {
+        dirLightUBOs.lights[i].color = glm::vec4(dirLightColors[i], 1.0f);
+        dirLightUBOs.lights[i].direction = glm::vec4(glm::normalize(dirLightDirections[i]), 0.0f);
+    }
+    VkBuffer dirLightBuffer = vklCreateHostCoherentBufferWithBackingMemory(sizeof(DirectionalLightUBOs), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(dirLightBuffer, &dirLightUBOs, sizeof(DirectionalLightUBOs));
+    return dirLightBuffer;
+}
+VkBuffer setupPointLights(PointLightUBOs& pointLightUBOs, std::vector<glm::vec3> pointLightColors, std::vector<glm::vec3> pointLightPositions, std::vector<glm::vec3> pointLightAttenuations) {
+    pointLightUBOs.num_lights = pointLightColors.size();
+    for (uint32_t i = 0; i < pointLightUBOs.num_lights; i++) {
+        pointLightUBOs.lights[i].color = glm::vec4(pointLightColors[i], 1.0f);
+        pointLightUBOs.lights[i].position = glm::vec4(pointLightPositions[i], 0.0f);
+        pointLightUBOs.lights[i].attenuation = glm::vec4(pointLightAttenuations[i], 0.0f);
+    }
+    VkBuffer pointLightBuffer = vklCreateHostCoherentBufferWithBackingMemory(sizeof(PointLightUBOs), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(pointLightBuffer, &pointLightUBOs, sizeof(PointLightUBOs));
+    return pointLightBuffer;
+}
+
+// Subtask 5.15: Spotlight
+VkBuffer setupSpotLights(SpotLightUBOs& spotLightUBOs, std::vector<glm::vec3> spotLightColors, std::vector<glm::vec3> spotLightPositions, glm::vec3 spotLightOuterConeRadius, glm::vec3 spotLightInnerConeRadius, std::vector<glm::vec3> spotLightDirections, std::vector<glm::vec3> spotLightAttenuations) {
+    spotLightUBOs.num_lights = spotLightColors.size();
+    for (uint32_t i = 0; i < spotLightUBOs.num_lights; i++) {
+        spotLightUBOs.lights[i].color = glm::vec4(spotLightColors[i], 1.0f);
+        spotLightUBOs.lights[i].position = glm::vec4(spotLightPositions[i], 0.0f);
+        spotLightUBOs.lights[i].outer_radius = glm::vec4(glm::cos(glm::radians(spotLightOuterConeRadius)), 0.0f);
+        spotLightUBOs.lights[i].inner_radius = glm::vec4(glm::cos(glm::radians(spotLightInnerConeRadius)), 0.0f);
+        spotLightUBOs.lights[i].direction = glm::vec4(glm::normalize(spotLightDirections[i]), 0.0f);
+        spotLightUBOs.lights[i].attenuation = glm::vec4(spotLightAttenuations[i], 0.0f);
+    }
+    VkBuffer spotLightBuffer = vklCreateHostCoherentBufferWithBackingMemory(sizeof(SpotLightUBOs), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    vklCopyDataIntoHostCoherentBuffer(spotLightBuffer, &spotLightUBOs, sizeof(SpotLightUBOs));
+    return spotLightBuffer;
 }

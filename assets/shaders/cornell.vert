@@ -14,6 +14,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 projection;
     ivec4 userInput;
     vec4 camera_pos;
+    vec4 material;
 } UBO;
 
 void main() {
@@ -22,4 +23,3 @@ void main() {
     outPosition = vec3(UBO.model * vec4(inPosition, 1.0));
     gl_Position = UBO.projection * UBO.view * UBO.model * vec4(inPosition, 1.0);
 }
-
