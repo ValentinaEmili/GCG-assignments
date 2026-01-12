@@ -1623,10 +1623,6 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
     for (uint32_t j = 1; j < n_circles; ++j) {
         vCoords[j] = vCoords[j - 1] + glm::length(centers[j] - centers[j - 1]);
     }
-    float tot_length = vCoords[n_circles - 1];
-    for (uint32_t j = 1; j < n_circles; ++j) {
-        vCoords[j] = vCoords[j] / tot_length;
-    }
 
     // side vertices
     for (uint32_t i = 0; i < n_circles; ++i) {
