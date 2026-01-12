@@ -198,10 +198,10 @@ std::vector<Vertex> cube_vertices = {
     {{ cube_width / 2, -cube_height / 2,  cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
     {{-cube_width / 2, -cube_height / 2,  cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
     // top
-    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
-    {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}}
+    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+    {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
 };
 
 std::vector<uint32_t> cube_indices = {
