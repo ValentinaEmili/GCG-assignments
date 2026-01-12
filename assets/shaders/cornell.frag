@@ -13,6 +13,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     ivec4 userInput;
     vec4 camera_pos;
     vec4 material;
+    vec4 texture;
 } UBO;
 
 layout(set = 0, binding = 1) uniform DirectionalLightUBO {

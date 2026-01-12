@@ -86,6 +86,7 @@ bool is_wireframe = false;
 int cull_mode_idx = 0;
 bool draw_normals = false;
 bool draw_fresnel = true;
+bool draw_texcoords = false;
 
 void keyCallbackFromGlfw(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
@@ -96,16 +97,17 @@ void keyCallbackFromGlfw(GLFWwindow* window, int key, int scancode, int action, 
     if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
         is_wireframe = !is_wireframe;
     }
-
     if (key == GLFW_KEY_F2 && action == GLFW_PRESS) {
         cull_mode_idx = (cull_mode_idx + 1) % 2;
     }
     if (key == GLFW_KEY_N && action == GLFW_PRESS) {
         draw_normals = !draw_normals;
     }
-
     if (key == GLFW_KEY_F && action == GLFW_PRESS) {
         draw_fresnel = !draw_fresnel;
+    }
+    if (key == GLFW_KEY_T && action == GLFW_PRESS) {
+        draw_texcoords = !draw_texcoords;
     }
 }
 
@@ -117,6 +119,7 @@ struct UniformBufferObject {
     alignas(16) glm::ivec4 userInput;
     alignas(16) glm::vec4 camera_pos;
     alignas(16) glm::vec4 material;
+    alignas(16) glm::vec4 texture;
 };
 
 // Subtask 5.8: Uniform Buffers for Lights
@@ -165,39 +168,40 @@ struct Vertex {
     glm::vec3 position;
     glm::vec3 normal;
     glm::vec3 color;
+    glm::vec2 tex_coord;
 };
 
 std::vector<Vertex> cube_vertices = {
     // front
-    {{-cube_width / 2, -cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
-    {{ cube_width / 2, -cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
-    {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
-    {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2, -cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ cube_width / 2, -cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+    {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
     // back
-    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
-    {{ cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
-    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
-    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
     // left
-    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{-cube_width / 2, -cube_height / 2,  cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{-cube_width / 2, -cube_height / 2,  cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
     // right
-    {{ cube_width / 2, -cube_height / 2, -cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{ cube_width / 2, -cube_height / 2,  cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{ cube_width / 2, -cube_height / 2, -cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ cube_width / 2, -cube_height / 2,  cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
     // bottom
-    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{ cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{ cube_width / 2, -cube_height / 2,  cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{-cube_width / 2, -cube_height / 2,  cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ cube_width / 2, -cube_height / 2,  cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+    {{-cube_width / 2, -cube_height / 2,  cube_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
     // top
-    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
-    {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}},
+    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+    {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+    {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}}
 };
 
 std::vector<uint32_t> cube_indices = {
@@ -221,31 +225,31 @@ float cornell_height = 3.0f;
 float cornell_depth = 3.0f;
 
 std::vector<Vertex> cornell_vertices = {
-    // back
-    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}},
-    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}},
-    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}},
-    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}},
+    // back                                                                                                                                                         // uv-coords not used
+    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}, {0.0f, 0.0f}},
+    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}, {0.0f, 0.0f}},
+    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}, {0.0f, 0.0f}},
+    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}, {0.0f, 0.0f}},
     // left
-    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}},
-    {{-cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}},
-    {{-cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}},
-    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}},
+    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}, {0.0f, 0.0f}},
+    {{-cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}, {0.0f, 0.0f}},
+    {{-cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}, {0.0f, 0.0f}},
+    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}, {0.0f, 0.0f}},
     // right
-    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}},
-    {{ cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}},
-    {{ cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}},
-    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}},
+    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}, {0.0f, 0.0f}},
+    {{ cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}, {0.0f, 0.0f}},
+    {{ cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}, {0.0f, 0.0f}},
+    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}, {0.0f, 0.0f}},
     // bottom
-    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}},
-    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}},
-    {{ cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}},
-    {{-cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}},
+    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}, {0.0f, 0.0f}},
+    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}, {0.0f, 0.0f}},
+    {{ cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}, {0.0f, 0.0f}},
+    {{-cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}, {0.0f, 0.0f}},
     // top
-    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}},
-    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}},
-    {{ cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}},
-    {{-cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}},
+    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}, {0.0f, 0.0f}},
+    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}, {0.0f, 0.0f}},
+    {{ cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}, {0.0f, 0.0f}},
+    {{-cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}, {0.0f, 0.0f}}
 };
 
 std::vector<uint32_t> cornell_indices = {
@@ -280,9 +284,11 @@ MeshResources SetupMesh(
     VkDescriptorPool descriptor_pool,
     VkDescriptorSetLayout descriptor_set_layout,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 3>& descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 4>& descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
+    VkImageView textureView,
+    VkSampler textureSampler,
     ShadingMode shadingMode,
     VkDevice vk_device,
     glm::vec3 translation,
@@ -301,11 +307,15 @@ MeshResources createMesh(
     glm::mat4 projection,
     GLFWwindow* window,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 4>& descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
+    VkImageView textureView,
+    VkSampler textureSampler,
     ShadingMode shadingMode,
     VkDevice vk_device);
+
+void destroyMeshResources(VkDevice vk_device, MeshResources& mesh);
 
 void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 
@@ -316,6 +326,17 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
 glm::vec3 bezierPoint(std::vector<glm::vec3>& vertices, float t);
 glm::vec3 derivativeBezierPoint(std::vector<glm::vec3>& vertices, float t);
 void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>& controlPoints, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+
+// Subtask 6.7: Load DDS Textures into Images
+struct Texture {
+    VkBuffer buffer;
+    VkImage image;
+    VkImageView view;
+};
+
+Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandPool command_pool, VkQueue vk_queue);
+
+PFN_vkCmdPipelineBarrier2KHR g_vkCmdPipelineBarrier2KHR;
 /* --------------------------------------------- */
 // Main
 /* --------------------------------------------- */
@@ -348,7 +369,7 @@ int main(int argc, char** argv) {
     cull_mode_idx = renderer_reader.GetBoolean("renderer", "backface_culling", false) ? 1 : 0;
     draw_normals = renderer_reader.GetBoolean("renderer", "normals", false);
     draw_fresnel = renderer_reader.GetBoolean("renderer", "fresnel", true);
-
+    draw_texcoords = renderer_reader.GetBoolean("renderer", "texcoords", false);
 
     /* --------------------------------------------- */
     // Subtask 1.2: Create a Window with GLFW
@@ -529,7 +550,7 @@ int main(int argc, char** argv) {
     device_create_info.pQueueCreateInfos = &queue_create_info;
     device_create_info.queueCreateInfoCount = 1;
 
-    std::vector<const char*> device_extensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    std::vector<const char*> device_extensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME};
 
 #ifdef __APPLE__
     device_extensions.push_back("VK_KHR_portability_subset");
@@ -539,11 +560,25 @@ int main(int argc, char** argv) {
     device_create_info.ppEnabledExtensionNames = device_extensions.data();
     device_create_info.pEnabledFeatures = &device_features; // enable physical device features, subtask 3.1: Wireframe Mode
 
+    VkPhysicalDeviceSynchronization2Features sync2Features{};
+    sync2Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
+    sync2Features.pNext = nullptr;
+    sync2Features.synchronization2 = VK_TRUE;
+
+    device_create_info.pNext = &sync2Features;
+
     result = vkCreateDevice(vk_physical_device, &device_create_info, nullptr, &vk_device);
     VKL_CHECK_VULKAN_RESULT(result);
 
     if (!vk_device) {
         VKL_EXIT_WITH_ERROR("No VkDevice created or handle not assigned.");
+    }
+
+    auto* procAddr = vkGetDeviceProcAddr(vk_device, "vkCmdPipelineBarrier2KHR");
+    if (procAddr == nullptr) {
+        throw std::runtime_error("Failed to load vkCmdPipelineBarrier2KHR!");
+    } else {
+        g_vkCmdPipelineBarrier2KHR = reinterpret_cast<PFN_vkCmdPipelineBarrier2KHR>(procAddr);
     }
 
     // TODO: After device creation, use vkGetDeviceQueue to get the one and only created queue!
@@ -659,28 +694,59 @@ int main(int argc, char** argv) {
     }
     VKL_LOG("Subtask 1.9 done.");
 
+    // Subtask 6.7: Load DDS Textures into Images
+    VkCommandPoolCreateInfo command_pool_info{};
+    command_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    command_pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    command_pool_info.queueFamilyIndex = selected_queue_family_index;
+
+    VkCommandPool texture_command_pool;
+    vkCreateCommandPool(vk_device, &command_pool_info, nullptr, &texture_command_pool);
+
+    Texture wood = loadTexture("../assets/textures/wood_texture.dds", vk_physical_device, vk_device, texture_command_pool, vk_queue);
+    Texture tiles = loadTexture("../assets/textures/tiles_diffuse.dds", vk_physical_device, vk_device, texture_command_pool, vk_queue);
+
+    // Subtask 6.9: Create a Sampler
+    VkSamplerCreateInfo sampler_info{};
+    sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler_info.magFilter = VK_FILTER_LINEAR;
+    sampler_info.minFilter = VK_FILTER_LINEAR;
+    sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    sampler_info.minLod = 0.0f;
+    sampler_info.maxLod = VK_LOD_CLAMP_NONE;
+    VkSampler vk_sampler;
+    vkCreateSampler(vk_device, &sampler_info, nullptr, &vk_sampler);
+
     // Subtask 2.2: Create a Uniform Buffer
-    std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding{};
-    for (uint32_t i = 0; i < 3; i++) {
+    std::array<VkDescriptorSetLayoutBinding, 4> descriptor_set_layout_binding{};
+    for (uint32_t i = 0; i < 4; i++) {
         descriptor_set_layout_binding[i].binding = i;
-        descriptor_set_layout_binding[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptor_set_layout_binding[i].descriptorCount = 1;
-        descriptor_set_layout_binding[i].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        if (i == 3) { // texture
+            descriptor_set_layout_binding[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptor_set_layout_binding[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        } else {
+            descriptor_set_layout_binding[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptor_set_layout_binding[i].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        }
         descriptor_set_layout_binding[i].pImmutableSamplers = nullptr;
     }
 
     // Subtask 2.3: Allocate and Write Descriptors
-    VkDescriptorPoolSize pool_size;
-    pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    pool_size.descriptorCount = 8 * 16;
+    std::vector<VkDescriptorPoolSize> pool_size(2);
+    pool_size[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    pool_size[0].descriptorCount = 8 * 16;
+    pool_size[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    pool_size[1].descriptorCount = 8;
 
     VkDescriptorPoolCreateInfo descriptor_pool_create_info{};
     descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     descriptor_pool_create_info.pNext = nullptr;
     descriptor_pool_create_info.flags = 0;
     descriptor_pool_create_info.maxSets = 8;
-    descriptor_pool_create_info.poolSizeCount = 1;
-    descriptor_pool_create_info.pPoolSizes = &pool_size;
+    descriptor_pool_create_info.poolSizeCount = static_cast<uint32_t>(pool_size.size());
+    descriptor_pool_create_info.pPoolSizes = pool_size.data();
+    descriptor_pool_create_info.maxSets = 8;
 
     VkDescriptorPool descriptor_pool;
     VkResult des_pool_result = vkCreateDescriptorPool(vk_device, &descriptor_pool_create_info, nullptr, &descriptor_pool);
@@ -697,7 +763,6 @@ int main(int argc, char** argv) {
     VkResult des_set_layout_result = vkCreateDescriptorSetLayout(vk_device, &descriptor_set_layout_create_info, nullptr, &descriptor_set_layout);
     VKL_CHECK_VULKAN_ERROR(des_set_layout_result);
 
-    // Subtask 5.8: Uniform Buffers for Lights
 
     DirectionalLightUBO dirLightUBO{};
     dirLightUBO.color = glm::vec4(0.85f, 0.85f, 0.85f, 1.0f);
@@ -711,6 +776,7 @@ int main(int argc, char** argv) {
     pointLightUBO.attenuation = glm::vec4(1.0f, 0.4f, 0.1f, 0.0f);
     VkBuffer pointLightBuffer = vklCreateHostCoherentBufferWithBackingMemory(sizeof(PointLightUBO), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     vklCopyDataIntoHostCoherentBuffer(pointLightBuffer, &pointLightUBO, sizeof(PointLightUBO));
+
     // Subtask 2.4: Viewing and Projection
     std::string init_camera_filepath = "assets/settings/camera_front.ini";
     if (cmdline_args.init_camera) {
@@ -738,11 +804,19 @@ int main(int argc, char** argv) {
     glm::mat4 camera_to_world = rotation * translation;
     glm::mat4 view = glm::inverse(camera_to_world);
 
+    // Subtask 3.5 - 5.1: Cubemap with normals vectors
+    VkDescriptorSet descriptor_set_cube{};
+    MeshResources cube = SetupMesh(cube_vertices, cube_indices, view, projection, window,
+        descriptor_pool, descriptor_set_layout, descriptor_set_cube, descriptor_set_layout_binding,
+        dirLightBuffer, pointLightBuffer, wood.view, vk_sampler, ShadingMode::Phong, vk_device,
+        glm::vec3(-0.6f, -0.89f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+        glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f), 45.0f);
+
     // Subtask 3.6 - 3.7 - 5.2: Cornell Box with normal vectors
     VkDescriptorSet descriptor_set_cornell{};
     MeshResources cornell_cube = SetupMesh(cornell_vertices, cornell_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_cornell, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, ShadingMode::Multicolor, vk_device,
+        dirLightBuffer, pointLightBuffer, wood.view, vk_sampler, ShadingMode::Multicolor, vk_device,
         glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.1f, 0.9f, 0.3f, 10.0f), 0.0f, true, false);
 
@@ -754,7 +828,7 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_cylinder{};
     MeshResources cylinder = SetupMesh(cylinder_vertices, cylinder_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_cylinder, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, ShadingMode::Phong, vk_device,
+        dirLightBuffer, pointLightBuffer, wood.view, vk_sampler, ShadingMode::Phong, vk_device,
         glm::vec3(0.6f, 0.3f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.75f, 0.25f, 0.01f, 1.0f), glm::vec4(0.1f, 0.9f, 0.3f, 5.0f));
 
@@ -766,15 +840,8 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_sphere{};
     MeshResources sphere = SetupMesh(sphere_vertices, sphere_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_sphere, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, ShadingMode::Gouraud, vk_device,
+        dirLightBuffer, pointLightBuffer, tiles.view, vk_sampler, ShadingMode::Phong, vk_device,
         glm::vec3(0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f));
-
-    VkDescriptorSet descriptor_set_sphere_2{};
-    MeshResources sphere_2 = SetupMesh(sphere_vertices, sphere_indices, view, projection, window,
-        descriptor_pool, descriptor_set_layout, descriptor_set_sphere_2, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, ShadingMode::Phong, vk_device,
-        glm::vec3(-0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f));
 
     // Subtask 4.3 - 5.5: Bézier Cylinder Geometry with normal vectors
@@ -792,7 +859,7 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_bezier_cylinder{};
     MeshResources bezier_cylinder = SetupMesh(bezier_cylinder_vertices, bezier_cylinder_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_bezier_cylinder, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, ShadingMode::Phong, vk_device,
+        dirLightBuffer, pointLightBuffer, tiles.view, vk_sampler, ShadingMode::Phong, vk_device,
         glm::vec3(-0.6f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.75f, 0.25f, 0.01f, 1.0f), glm::vec4(0.1f, 0.9f, 0.3f, 5.0f));
 
@@ -828,10 +895,26 @@ int main(int argc, char** argv) {
         VkCommandBuffer cmdBuffer = vklGetCurrentCommandBuffer();
         VkDeviceSize offsets[] = {0};
 
+        // Subtask 3.5 - 5.1: Cubemap with normal vectors
+        cube.ubo.view = view;
+        cube.ubo.projection = projection;
+        cube.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, draw_texcoords ? 1: 0, 0);
+        cube.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
+        vklCopyDataIntoHostCoherentBuffer(cube.uniformBuffer, &cube.ubo, cube.uniformBufferSize);
+
+        VkPipeline cube_pipeline = cube.pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipelineLayout cube_pipeline_layout = vklGetLayoutForPipeline(cube_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cube_pipeline);
+
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cube.vertexBuffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, cube.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cube_pipeline_layout, 0, 1, &descriptor_set_cube, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
+
         // Subtask 3.6 - 3.7 - 5.2: Cornell Box
         cornell_cube.ubo.view = view;
         cornell_cube.ubo.projection = projection;
-        cornell_cube.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
+        cornell_cube.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, draw_texcoords ? 1: 0, 0);
         cornell_cube.ubo.userInput.z = 1;
         cornell_cube.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
         vklCopyDataIntoHostCoherentBuffer(cornell_cube.uniformBuffer, &cornell_cube.ubo, cornell_cube.uniformBufferSize);
@@ -848,7 +931,7 @@ int main(int argc, char** argv) {
         // Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
         cylinder.ubo.view = view;
         cylinder.ubo.projection = projection;
-        cylinder.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
+        cylinder.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, draw_texcoords ? 1: 0, 0);
         cylinder.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
         vklCopyDataIntoHostCoherentBuffer(cylinder.uniformBuffer, &cylinder.ubo, cylinder.uniformBufferSize);
 
@@ -864,7 +947,7 @@ int main(int argc, char** argv) {
         // Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
         sphere.ubo.view = view;
         sphere.ubo.projection = projection;
-        sphere.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
+        sphere.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, draw_texcoords ? 1: 0, 0);
         sphere.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
         vklCopyDataIntoHostCoherentBuffer(sphere.uniformBuffer, &sphere.ubo, sphere.uniformBufferSize);
 
@@ -877,26 +960,10 @@ int main(int argc, char** argv) {
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_pipeline_layout, 0, 1, &descriptor_set_sphere, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(sphere_indices.size()), 1, 0, 0, 0);
 
-        // sphere 2
-        sphere_2.ubo.view = view;
-        sphere_2.ubo.projection = projection;
-        sphere_2.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
-        sphere_2.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
-        vklCopyDataIntoHostCoherentBuffer(sphere_2.uniformBuffer, &sphere_2.ubo, sphere_2.uniformBufferSize);
-
-        VkPipeline sphere_2_pipeline = sphere_2.pipelines[is_wireframe * 2 + cull_mode_idx];
-        VkPipelineLayout sphere_2_pipeline_layout = vklGetLayoutForPipeline(sphere_2_pipeline);
-        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_2_pipeline);
-
-        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &sphere_2.vertexBuffer, offsets);
-        vkCmdBindIndexBuffer(cmdBuffer, sphere_2.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_2_pipeline_layout, 0, 1, &descriptor_set_sphere_2, 0, nullptr);
-        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(sphere_indices.size()), 1, 0, 0, 0);
-
         // Subtask 4.3 - 5.5: Bézier Cylinder with normal vectors
         bezier_cylinder.ubo.view = view;
         bezier_cylinder.ubo.projection = projection;
-        bezier_cylinder.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
+        bezier_cylinder.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, draw_texcoords ? 1 : 0, 0);
         bezier_cylinder.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
         vklCopyDataIntoHostCoherentBuffer(bezier_cylinder.uniformBuffer, &bezier_cylinder.ubo, bezier_cylinder.uniformBufferSize);
 
@@ -932,41 +999,27 @@ int main(int argc, char** argv) {
     /* --------------------------------------------- */
     // Subtask 1.12: Cleanup
     /* --------------------------------------------- */
-    for (uint32_t i = 0; i < 4; i++) {
-        vklDestroyGraphicsPipeline(cornell_cube.pipelines[i]);
-        vklDestroyGraphicsPipeline(cylinder.pipelines[i]);
-        vklDestroyGraphicsPipeline(sphere.pipelines[i]);
-        vklDestroyGraphicsPipeline(sphere_2.pipelines[i]);
-        vklDestroyGraphicsPipeline(bezier_cylinder.pipelines[i]);
-    }
-
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_cube.uniformBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_cube.vertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_cube.indexBuffer);
-
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder.uniformBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder.vertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder.indexBuffer);
-
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere.uniformBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere.vertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere.indexBuffer);
-
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere_2.uniformBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere_2.vertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere_2.indexBuffer);
-
-    vklDestroyHostCoherentBufferAndItsBackingMemory(bezier_cylinder.uniformBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(bezier_cylinder.vertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(bezier_cylinder.indexBuffer);
+    destroyMeshResources(vk_device, cornell_cube);
+    destroyMeshResources(vk_device, cylinder);
+    destroyMeshResources(vk_device, sphere);
+    destroyMeshResources(vk_device, cube);
+    destroyMeshResources(vk_device, bezier_cylinder);
 
     vklDestroyHostCoherentBufferAndItsBackingMemory(dirLightBuffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(pointLightBuffer);
 
+    vklDestroyHostCoherentBufferAndItsBackingMemory(wood.buffer);
+    vklDestroyDeviceLocalImageAndItsBackingMemory(wood.image);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(tiles.buffer);
+    vklDestroyDeviceLocalImageAndItsBackingMemory(tiles.image);
+    vklDestroyDeviceLocalImageAndItsBackingMemory(depth_image);
+    vkDestroyImageView(vk_device, wood.view, nullptr);
+    vkDestroyImageView(vk_device, tiles.view, nullptr);
+    vkDestroySampler(vk_device, vk_sampler, nullptr);
+
     vkDestroyDescriptorSetLayout(vk_device, descriptor_set_layout, nullptr);
     vkDestroyDescriptorPool(vk_device, descriptor_pool, nullptr);
-
-    vklDestroyDeviceLocalImageAndItsBackingMemory(depth_image);
+    vkDestroyCommandPool(vk_device, texture_command_pool, nullptr);
 
     gcgDestroyFramework();
 
@@ -1136,9 +1189,11 @@ MeshResources SetupMesh(
     VkDescriptorPool descriptor_pool,
     VkDescriptorSetLayout descriptor_set_layout,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 3>& descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 4>& descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
+    VkImageView textureView,
+    VkSampler textureSampler,
     ShadingMode shadingMode,
     VkDevice vk_device,
     glm::vec3 translation,
@@ -1159,8 +1214,9 @@ MeshResources SetupMesh(
     VkResult res = vkAllocateDescriptorSets(vk_device, &alloc_info, &descriptor_set);
     VKL_CHECK_VULKAN_ERROR(res);
 
-    MeshResources mesh = createMesh(vertices, indices, view, projection, window,
-        descriptor_set, descriptor_set_layout_binding, dirLightBuffer, pointLightBuffer, shadingMode, vk_device);
+    MeshResources mesh = createMesh(vertices, indices, view, projection, window, descriptor_set,
+        descriptor_set_layout_binding, dirLightBuffer, pointLightBuffer, textureView, textureSampler,
+        shadingMode, vk_device);
 
     glm::mat4 model = glm::mat4(1.0f);
     if (translate) {
@@ -1190,9 +1246,11 @@ MeshResources createMesh(
     glm::mat4 projection,
     GLFWwindow* window,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 3> descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 4>& descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
+    VkImageView textureView,
+    VkSampler textureSampler,
     ShadingMode shadingMode,
     VkDevice vk_device) {
     if (descriptor_set == VK_NULL_HANDLE) {
@@ -1242,6 +1300,16 @@ MeshResources createMesh(
     color.offset = offsetof(Vertex, color);
     pipe_config.inputAttributeDescriptions.push_back(color);
 
+    if (shadingMode != ShadingMode::Multicolor) {
+        // attribute: texture
+        VkVertexInputAttributeDescription texture = {};
+        texture.location = 3;
+        texture.binding = 0;
+        texture.format = VK_FORMAT_R32G32_SFLOAT;
+        texture.offset = offsetof(Vertex, tex_coord);
+        pipe_config.inputAttributeDescriptions.push_back(texture);
+    }
+
     std::string vertex_shader_path;
     std::string fragment_shader_path;
 
@@ -1265,6 +1333,7 @@ MeshResources createMesh(
     pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[0]);
     pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[1]);
     pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[2]);
+    pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[3]);
 
     for (uint32_t wire = 0; wire < 2; wire++) {
         for (uint32_t cull = 0; cull < 2; cull++) {
@@ -1300,7 +1369,14 @@ MeshResources createMesh(
     descriptor_buffer_pointLight_info.buffer = pointLightBuffer;
     descriptor_buffer_pointLight_info.range = sizeof(PointLightUBO);
 
-    std::array<VkWriteDescriptorSet, 3> write_descriptor_set{};
+    // texture
+    VkDescriptorImageInfo descriptor_image_info{};
+    descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    descriptor_image_info.imageView = textureView;
+    descriptor_image_info.sampler = textureSampler;
+
+    //std::array<VkWriteDescriptorSet, 3> write_descriptor_set{};
+    std::array<VkWriteDescriptorSet, 4> write_descriptor_set{};
     // UBO
     write_descriptor_set[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write_descriptor_set[0].dstSet = descriptor_set;
@@ -1320,16 +1396,35 @@ MeshResources createMesh(
     write_descriptor_set[2].dstBinding = 2;
     write_descriptor_set[2].pBufferInfo = &descriptor_buffer_pointLight_info;
 
+    // texture
+    write_descriptor_set[3] = write_descriptor_set[0];
+    write_descriptor_set[3].dstBinding = 3;
+    write_descriptor_set[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write_descriptor_set[3].pImageInfo = &descriptor_image_info;
+    write_descriptor_set[3].pBufferInfo = nullptr;
+
     vkUpdateDescriptorSets(vk_device, static_cast<uint32_t>(write_descriptor_set.size()), write_descriptor_set.data(), 0, nullptr);
 
     return mesh;
+}
+void destroyMeshResources(VkDevice vk_device, MeshResources& mesh) {
+    // Destroy pipelines (you have an array of 4)
+    for (int i = 0; i < 4; i++) {
+        if (mesh.pipelines[i] != VK_NULL_HANDLE) {
+            vkDestroyPipeline(vk_device, mesh.pipelines[i], nullptr);
+        }
+    }
+    // Destroy buffers and free their memory
+    vklDestroyHostCoherentBufferAndItsBackingMemory(mesh.vertexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(mesh.indexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(mesh.uniformBuffer);
 }
 
 // Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
 void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
 
     // north pole
-    vertices.push_back({{0.0f, r, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
+    vertices.push_back({{0.0f, r, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
 
     for (uint32_t i = 1; i < m; ++i) {
         for (uint32_t j = 0; j < n; ++j) {
@@ -1338,14 +1433,16 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
             float x = r * glm::sin(theta) * glm::cos(phi);
             float y = r * glm::cos(theta);
             float z = r * glm::sin(theta) * glm::sin(phi);
+            float u = float(j) / n;
+            float v = float(i) / m;
             glm::vec3 position(x, y, z);
             glm::vec3 normal = glm::normalize(position);
-            vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}});
+            vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}, {u, v}});
         }
     }
 
     // south pole
-    vertices.push_back({{0.0f, -r, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
+    vertices.push_back({{0.0f, -r, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
 
     uint32_t topCenter = 0;
     uint32_t RingStart = topCenter + 1;
@@ -1393,14 +1490,16 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
 void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
     // top face
     uint32_t topCenter = static_cast<uint32_t>(vertices.size());
-    vertices.push_back({{0.0f, h * 0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
+    vertices.push_back({{0.0f, h * 0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
     uint32_t topStart = static_cast<uint32_t>(vertices.size());
 
     for (uint32_t i = 0; i < n; ++i) {
         float angle = float(i) / n * glm::two_pi<float>();
         float x = r * glm::cos(angle);
         float z = r * glm::sin(angle);
-        vertices.push_back({{x, h * 0.5f, z}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
+        float u = (x / (2.0f * r)) + 0.5f;
+        float v = (z / (2.0f * r)) + 0.5f;
+        vertices.push_back({{x, h * 0.5f, z}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, v}});
     }
     for (uint32_t i = 0; i < n; ++i) {
         uint32_t curr = topStart + i;
@@ -1412,14 +1511,16 @@ void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, 
 
     // bottom face
     uint32_t bottomCenter = static_cast<uint32_t>(vertices.size());
-    vertices.push_back({{0.0f, -h * 0.5f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
+    vertices.push_back({{0.0f, -h * 0.5f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
     uint32_t bottomStart = static_cast<uint32_t>(vertices.size());
 
     for (uint32_t i = 0; i < n; ++i) {
         float angle = float(i) / n * glm::two_pi<float>();
         float x = r * glm::cos(angle);
         float z = r * glm::sin(angle);
-        vertices.push_back({{x, -h * 0.5f, z}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}});
+        float u = (x / (2.0f * r)) + 0.5f;
+        float v = (z / (2.0f * r)) + 0.5f;
+        vertices.push_back({{x, -h * 0.5f, z}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, v}});
     }
     for (uint32_t i = 0; i < n; ++i) {
         uint32_t curr = bottomStart + i;
@@ -1434,10 +1535,10 @@ void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, 
         float angle = float(i) / n * glm::two_pi<float>();
         float x = r * glm::cos(angle);
         float z = r * glm::sin(angle);
+        float u = float(i) / n;
         glm::vec3 normal = glm::normalize(glm::vec3(x, 0.0f, z));
-
-        vertices.push_back({{x, h * 0.5f, z}, normal, {0.0f, 0.0f, 0.0f}});
-        vertices.push_back({{x, -h * 0.5f, z}, normal, {0.0f, 0.0f, 0.0f}});
+        vertices.push_back({{x, h * 0.5f, z}, normal, {0.0f, 0.0f, 0.0f}, {u, 1.0f}});
+        vertices.push_back({{x, -h * 0.5f, z}, normal, {0.0f, 0.0f, 0.0f}, {u,  0.0f}});
     }
 
     uint32_t sideStart = vertices.size() - 2 * n;
@@ -1497,7 +1598,7 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
     std::vector<glm::vec3> binormals(n_circles);
     glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
     if (glm::abs(glm::dot(up, tangents[0])) > 0.999f) {
-        up = glm::vec3(1.0f, 0.0f, 0.0f);
+        up = glm::vec3(0.0f, 0.0f, 1.0f);
     }
     normals[0] = glm::normalize(glm::cross(tangents[0],up));
     binormals[0] = glm::normalize(glm::cross(tangents[0], normals[0]));
@@ -1517,39 +1618,57 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
             binormals[i] = glm::normalize(glm::cross(tangents[i], normals[i]));
         }
     }
+    std::vector<float> vCoords(n_circles);
+    vCoords[0] = 0.0f;
+    for (uint32_t j = 1; j < n_circles; ++j) {
+        vCoords[j] = vCoords[j - 1] + glm::length(centers[j] - centers[j - 1]);
+    }
+    float tot_length = vCoords[n_circles - 1];
+    for (uint32_t j = 1; j < n_circles; ++j) {
+        vCoords[j] = vCoords[j] / tot_length;
+    }
 
-    // vertices
+    // side vertices
     for (uint32_t i = 0; i < n_circles; ++i) {
         for (uint32_t j = 0; j < n; ++j) {
             float theta = glm::two_pi<float>() * float(j) / float(n);
             glm::vec3 local_dir = glm::cos(theta) * normals[i] + glm::sin(theta) * binormals[i];
             glm::vec3 position = centers[i] + r * local_dir;
             glm::vec3 normal = glm::normalize(local_dir);
-            vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}});
+            float u = float(j) / float(n);
+            u = std::fmod(u + 0.25f, 1.0f); // "+0.25" is the 90 degrees rotation
+            float v = vCoords[i];
+            vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}, {u, v}});
         }
     }
 
+    // top base
     uint32_t topCapStart = static_cast<uint32_t>(vertices.size());
     for (uint32_t j = 0; j < n; ++j) {
         float theta = glm::two_pi<float>() * float(j) / float(n);
         glm::vec3 local_dir = glm::cos(theta) * normals[0] + glm::sin(theta) * binormals[0];
         glm::vec3 position = centers[0] + r * local_dir;
         glm::vec3 normal = -tangents[0];
-        vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}});
+        float u = (-glm::dot(local_dir, binormals[0]) * 0.5f) + 0.5f; // sin(theta) in [-1, 1] goes in [-0.5, 0.5] goes in [0, 1]
+        float v = (glm::dot(local_dir, normals[0]) * 0.5f) + 0.5f; // cos(theta)
+        vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}, {u, v}});
     }
     uint32_t topCenter = vertices.size();
-    vertices.push_back({centers[0], -tangents[0], {0.0f, 0.0f, 0.0f}});
+    vertices.push_back({centers[0], -tangents[0], {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
 
+    // bottom base
     uint32_t bottomCapStart = static_cast<uint32_t>(vertices.size());
     for (uint32_t j = 0; j < n; ++j) {
         float theta = glm::two_pi<float>() * float(j) / float(n);
         glm::vec3 local_dir = glm::cos(theta) * normals[s] + glm::sin(theta) * binormals[s];
         glm::vec3 position = centers[s] + r * local_dir;
         glm::vec3 normal = tangents[s];
-        vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}});
+        float u = (-glm::dot(local_dir, binormals[s]) * 0.5f) + 0.5f;
+        float v = (glm::dot(local_dir, normals[s]) * 0.5f) + 0.5f;
+        vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}, {u, v}});
     }
     uint32_t bottomCenter = vertices.size();
-    vertices.push_back({centers[s], tangents[s], {0.0f, 0.0f, 0.0f}});
+    vertices.push_back({centers[s], tangents[s], {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
 
     // indices: side faces
     for (uint32_t i = 0; i < s; ++i) {
@@ -1586,4 +1705,163 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
         indices.push_back(curr);
         indices.push_back(next);
     }
+}
+
+Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandPool command_pool, VkQueue vk_queue) {
+    Texture texture{};
+    VklImageInfo info = vklGetDdsImageInfo(file);
+    texture.buffer = vklLoadDdsImageIntoHostCoherentBuffer(file);
+    texture.image = vklCreateDeviceLocalImageWithBackingMemory(vk_physical_device, vk_device, info.extent.width, info.extent.height, info.imageFormat, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1, 0);
+
+    uint32_t mip_levels = static_cast<uint32_t>(std::log2(std::max(info.extent.width, info.extent.height)) + 1);
+    VkImageViewCreateInfo view_create_info{};
+    view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_create_info.pNext = nullptr;
+    view_create_info.flags = 0;
+    view_create_info.image = texture.image;
+    view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    view_create_info.format = info.imageFormat;
+    view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    view_create_info.subresourceRange.baseMipLevel = 0;
+    view_create_info.subresourceRange.levelCount = mip_levels;
+    view_create_info.subresourceRange.baseArrayLayer = 0;
+    view_create_info.subresourceRange.layerCount = 1;
+    vkCreateImageView(vk_device, &view_create_info, nullptr, &texture.view);
+
+    VkCommandBufferAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc_info.commandPool = command_pool;
+    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc_info.commandBufferCount = 1;
+
+    VkCommandBuffer command_buffer;
+    vkAllocateCommandBuffers(vk_device, &alloc_info, &command_buffer);
+
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(command_buffer, &begin_info);
+
+    // record an image layout transition
+    /*VkImageMemoryBarrier image_memory_barrier{};
+    image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    image_memory_barrier.srcAccessMask = 0;
+    image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    image_memory_barrier.image = texture.image;
+    image_memory_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_memory_barrier.subresourceRange.baseArrayLayer = 0;
+    image_memory_barrier.subresourceRange.layerCount = 1;
+    image_memory_barrier.subresourceRange.baseMipLevel = 0;
+    image_memory_barrier.subresourceRange.levelCount = 1;
+    vkCmdPipelineBarrier(
+        command_buffer,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0, 0,
+        nullptr, 0,
+        nullptr, 1,
+        &image_memory_barrier);*/
+    VkImageMemoryBarrier2 image_memory_barrier{};
+    image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    image_memory_barrier.pNext = nullptr;
+    image_memory_barrier.srcAccessMask = 0;
+    image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    image_memory_barrier.image = texture.image;
+    image_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+    image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+    image_memory_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_memory_barrier.subresourceRange.baseArrayLayer = 0;
+    image_memory_barrier.subresourceRange.layerCount = 1;
+    image_memory_barrier.subresourceRange.baseMipLevel = 0;
+    image_memory_barrier.subresourceRange.levelCount = mip_levels;
+
+    VkDependencyInfo dependency_info;
+    dependency_info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dependency_info.pNext = nullptr;
+    dependency_info.dependencyFlags = 0;
+    dependency_info.memoryBarrierCount = 0;
+    dependency_info.pMemoryBarriers = nullptr;
+    dependency_info.bufferMemoryBarrierCount = 0;
+    dependency_info.pBufferMemoryBarriers = nullptr;
+    dependency_info.imageMemoryBarrierCount = 1;
+    dependency_info.pImageMemoryBarriers = &image_memory_barrier;
+
+    g_vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
+
+    //Subtask 6.12: Enable Mipmapping
+    // copy the content of the buffer into the image for each level
+    std::vector<VkBuffer> staging_buffers;
+    for (uint32_t level = 0; level < mip_levels; level++){
+        VklImageInfo vkl_image_info = vklGetDdsImageLevelInfo(file, level);
+        VkBuffer curr_buffer = vklLoadDdsImageLevelIntoHostCoherentBuffer(file, level);
+        staging_buffers.push_back(curr_buffer);
+        VkBufferImageCopy image_copy{};
+        image_copy.bufferOffset = 0;
+        image_copy.bufferRowLength = 0;
+        image_copy.bufferImageHeight = 0;
+        image_copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        image_copy.imageSubresource.mipLevel = level;
+        image_copy.imageSubresource.baseArrayLayer = 0;
+        image_copy.imageSubresource.layerCount = 1;
+        image_copy.imageOffset = {0, 0, 0};
+        image_copy.imageExtent = {vkl_image_info.extent.width, vkl_image_info.extent.height, 1};
+        vkCmdCopyBufferToImage(command_buffer, curr_buffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
+    }
+    /*
+    VkBufferImageCopy image_copy{};
+    image_copy.bufferOffset = 0;
+    image_copy.bufferRowLength = 0;
+    image_copy.bufferImageHeight = 0;
+    image_copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_copy.imageSubresource.mipLevel = 0;
+    image_copy.imageSubresource.baseArrayLayer = 0;
+    image_copy.imageSubresource.layerCount = 1;
+    image_copy.imageOffset = {0, 0, 0};
+    image_copy.imageExtent = {info.extent.width, info.extent.height, 1};
+    vkCmdCopyBufferToImage(command_buffer, texture.buffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
+    */
+    // it enables the shaders to access the image
+    image_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    image_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    image_memory_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+    image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+    dependency_info.pImageMemoryBarriers = &image_memory_barrier;
+    g_vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
+    /*vkCmdPipelineBarrier(command_buffer,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0, 0,
+        nullptr, 0,
+        nullptr, 1,
+        &image_memory_barrier);*/
+
+    vkEndCommandBuffer(command_buffer);
+
+    // create a fence
+    VkFenceCreateInfo fence_info{};
+    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_info.flags = 0; // unsignaled
+    VkFence vk_fence;
+    vkCreateFence(vk_device, &fence_info, nullptr, &vk_fence);
+
+    // submit the recorded cmd buffer to the queue
+    VkSubmitInfo submit_info{};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &command_buffer;
+    vkQueueSubmit(vk_queue, 1, &submit_info, vk_fence);
+    vkWaitForFences(vk_device, 1, &vk_fence, VK_TRUE, UINT64_MAX);
+    vkDestroyFence(vk_device, vk_fence, nullptr);
+    vkFreeCommandBuffers(vk_device, command_pool, 1, &command_buffer);
+    for (auto& buffer : staging_buffers) {
+        vklDestroyHostCoherentBufferAndItsBackingMemory(buffer);
+    }
+
+    return texture;
 }

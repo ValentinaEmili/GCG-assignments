@@ -14,6 +14,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 projection;
     ivec4 userInput;
     vec4 camera_pos;
+    vec4 material;
+    vec4 texture;
 } UBO;
 
 void main() {

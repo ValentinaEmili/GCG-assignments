@@ -2,9 +2,11 @@
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec3 inColor;
+layout(location = 3) in vec2 inTexCoords;
 
 layout(location = 0) out vec3 outNormal;
 layout(location = 1) out vec3 outColor;
+layout(location = 2) out vec2 outTexCoords;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4 color;
@@ -14,8 +16,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     ivec4 userInput;
     vec4 camera_pos;
     vec4 material;
+    vec4 texture;
 } UBO;
-
 layout(set = 0, binding = 1) uniform DirectionalLightUBO {
     vec4 color;
     vec4 direction;
@@ -64,6 +66,7 @@ vec3 clampedReflect(vec3 I, vec3 N) {
 }
 
 void main() {
+    outTexCoords = inTexCoords;
     vec3 outPosition = vec3(UBO.model * vec4(inPosition, 1.0));
     gl_Position = UBO.projection * UBO.view * UBO.model * vec4(inPosition, 1.0);
 
@@ -96,7 +99,7 @@ void main() {
     vec3 diffuse = kd * (diff_dir * dirLightUBO.color.rgb + diff_point * pointLightUBO.color.rgb * attenuation);
     vec3 specular = ks * (spec_dir * dirLightUBO.color.rgb + spec_point * pointLightUBO.color.rgb * attenuation);
 
-    vec3 result_color = (ambient + diffuse) * output_color + specular;
+    vec3 result_color = (ambient + diffuse) * outColor * texture_color + specular;
 
     // fresnel effect
     if (UBO.userInput[1] == 1) {
