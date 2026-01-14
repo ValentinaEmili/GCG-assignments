@@ -115,7 +115,7 @@ void main() {
 
             vec3 Ls = normalize(spotLightUBOs.lights[i].position.xyz - outPosition);
             vec3 spot_dir = normalize(spotLightUBOs.lights[i].direction.xyz);
-            float spot_effect = smoothstep(spotLightUBOs.lights[i].outer_radius.x, spotLightUBOs.lights[i].inner_radius.x, dot(Ls, spot_dir));
+            float spot_effect = smoothstep(spotLightUBOs.lights[i].outer_radius.x, spotLightUBOs.lights[i].inner_radius.x, tan(acos(dot(-Ls, spot_dir))));
 
             float diff = max(dot(N, Ls), 0.0f);
             diff_spot += diff * spotLightUBOs.lights[i].color.rgb * attenuation * spot_effect;

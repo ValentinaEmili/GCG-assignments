@@ -160,6 +160,7 @@ enum class ShadingMode {
     Multicolor,
     Gouraud,
     Phong,
+    PBR
 };
 
 // Subtask 2.6: Orbit Camera
@@ -334,6 +335,7 @@ MeshResources createMesh(
     VkBuffer spotLightBuffer,
     ShadingMode shadingMode,
     VkDevice vk_device);
+void destroyMeshResources(VkDevice vk_device, MeshResources& mesh);
 
 void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 
@@ -875,6 +877,17 @@ int main(int argc, char** argv) {
         glm::vec3(-0.6f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.75f, 0.25f, 0.01f, 1.0f), glm::vec4(0.1f, 0.9f, 0.3f, 5.0f));
 
+    // Subtask 5.16: Physically-Based Illum. Model
+    std::vector<Vertex> PBR_sphere_vertices;
+    std::vector<uint32_t> PBR_sphere_indices;
+    buildSphere(36, 18, 0.5f, PBR_sphere_vertices, PBR_sphere_indices);
+    VkDescriptorSet descriptor_set_PBR_spheres{};
+    MeshResources PBR_sphere = SetupMesh(PBR_sphere_vertices, PBR_sphere_indices, view, projection, window,
+        descriptor_pool, descriptor_set_layout, descriptor_set_PBR_spheres, descriptor_set_layout_binding,
+        dirLightBuffer, pointLightBuffer, spotLightBuffer, ShadingMode::PBR, vk_device,
+        glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f));
+
     /* --------------------------------------------- */
     // Subtask 1.10: Set-up the Render Loop
     while (!glfwWindowShouldClose(window)) {
@@ -988,6 +1001,22 @@ int main(int argc, char** argv) {
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bezierCylinder_pipeline_layout, 0, 1, &descriptor_set_bezier_cylinder, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(bezier_cylinder_indices.size()), 1, 0, 0, 0);
 
+        // Subtask 5.16: Physically-Based Illum. Model
+        PBR_sphere.ubo.view = view;
+        PBR_sphere.ubo.projection = projection;
+        PBR_sphere.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, 0, 0);
+        PBR_sphere.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
+        vklCopyDataIntoHostCoherentBuffer(PBR_sphere.uniformBuffer, &PBR_sphere.ubo, PBR_sphere.uniformBufferSize);
+
+        VkPipeline PBR_sphere_pipeline = PBR_sphere.pipelines[is_wireframe * 2 + cull_mode_idx];
+        VkPipelineLayout PBR_sphere_pipeline_layout = vklGetLayoutForPipeline(PBR_sphere_pipeline);
+        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, PBR_sphere_pipeline);
+
+        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &PBR_sphere.vertexBuffer, offsets);
+        vkCmdBindIndexBuffer(cmdBuffer, PBR_sphere.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, PBR_sphere_pipeline_layout, 0, 1, &descriptor_set_PBR_spheres, 0, nullptr);
+        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(PBR_sphere_indices.size()), 100, 0, 0, 0);
+
         vklEndRecordingCommands();
         vklPresentCurrentSwapchainImage();
 
@@ -1011,33 +1040,12 @@ int main(int argc, char** argv) {
     /* --------------------------------------------- */
     // Subtask 1.12: Cleanup
     /* --------------------------------------------- */
-    for (uint32_t i = 0; i < 4; i++) {
-        vklDestroyGraphicsPipeline(cornell_cube.pipelines[i]);
-        vklDestroyGraphicsPipeline(cylinder.pipelines[i]);
-        vklDestroyGraphicsPipeline(sphere.pipelines[i]);
-        vklDestroyGraphicsPipeline(sphere_2.pipelines[i]);
-        vklDestroyGraphicsPipeline(bezier_cylinder.pipelines[i]);
-    }
-
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_cube.uniformBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_cube.vertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cornell_cube.indexBuffer);
-
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder.uniformBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder.vertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(cylinder.indexBuffer);
-
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere.uniformBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere.vertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere.indexBuffer);
-
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere_2.uniformBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere_2.vertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(sphere_2.indexBuffer);
-
-    vklDestroyHostCoherentBufferAndItsBackingMemory(bezier_cylinder.uniformBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(bezier_cylinder.vertexBuffer);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(bezier_cylinder.indexBuffer);
+    destroyMeshResources(vk_device, cornell_cube);
+    destroyMeshResources(vk_device, cylinder);
+    destroyMeshResources(vk_device, sphere);
+    destroyMeshResources(vk_device, sphere_2);
+    destroyMeshResources(vk_device, PBR_sphere);
+    destroyMeshResources(vk_device, bezier_cylinder);
 
     vklDestroyHostCoherentBufferAndItsBackingMemory(dirLightBuffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(pointLightBuffer);
@@ -1341,6 +1349,11 @@ MeshResources createMesh(
         case ShadingMode::Multicolor:
             vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.vert");
             fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.frag");
+            break;
+        case ShadingMode::PBR:
+            vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/PBR.vert");
+            fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/PBR.frag");
+            break;
     }
 
     pipe_config.vertexShaderPath = vertex_shader_path.c_str();
@@ -1420,6 +1433,20 @@ MeshResources createMesh(
 
     return mesh;
 }
+
+void destroyMeshResources(VkDevice vk_device, MeshResources& mesh) {
+    // Destroy pipelines (you have an array of 4)
+    for (int i = 0; i < 4; i++) {
+        if (mesh.pipelines[i] != VK_NULL_HANDLE) {
+            vkDestroyPipeline(vk_device, mesh.pipelines[i], nullptr);
+        }
+    }
+    // Destroy buffers and free their memory
+    vklDestroyHostCoherentBufferAndItsBackingMemory(mesh.vertexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(mesh.indexBuffer);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(mesh.uniformBuffer);
+}
+
 
 // Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
 void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
@@ -1699,7 +1726,7 @@ VkBuffer setupPointLights(PointLightUBOs& pointLightUBOs, std::vector<glm::vec3>
     pointLightUBOs.num_lights = pointLightColors.size();
     for (uint32_t i = 0; i < pointLightUBOs.num_lights; i++) {
         pointLightUBOs.lights[i].color = glm::vec4(pointLightColors[i], 1.0f);
-        pointLightUBOs.lights[i].position = glm::vec4(pointLightPositions[i], 0.0f);
+        pointLightUBOs.lights[i].position = glm::vec4(pointLightPositions[i], 1.0f);
         pointLightUBOs.lights[i].attenuation = glm::vec4(pointLightAttenuations[i], 0.0f);
     }
     VkBuffer pointLightBuffer = vklCreateHostCoherentBufferWithBackingMemory(sizeof(PointLightUBOs), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
@@ -1712,9 +1739,9 @@ VkBuffer setupSpotLights(SpotLightUBOs& spotLightUBOs, std::vector<glm::vec3> sp
     spotLightUBOs.num_lights = spotLightColors.size();
     for (uint32_t i = 0; i < spotLightUBOs.num_lights; i++) {
         spotLightUBOs.lights[i].color = glm::vec4(spotLightColors[i], 1.0f);
-        spotLightUBOs.lights[i].position = glm::vec4(spotLightPositions[i], 0.0f);
-        spotLightUBOs.lights[i].outer_radius = glm::vec4(glm::cos(glm::radians(spotLightOuterConeRadius)), 0.0f);
-        spotLightUBOs.lights[i].inner_radius = glm::vec4(glm::cos(glm::radians(spotLightInnerConeRadius)), 0.0f);
+        spotLightUBOs.lights[i].position = glm::vec4(spotLightPositions[i], 1.0f);
+        spotLightUBOs.lights[i].outer_radius = glm::vec4(glm::tan(spotLightOuterConeRadius), 0.0f);
+        spotLightUBOs.lights[i].inner_radius = glm::vec4(glm::tan(spotLightInnerConeRadius), 0.0f);
         spotLightUBOs.lights[i].direction = glm::vec4(glm::normalize(spotLightDirections[i]), 0.0f);
         spotLightUBOs.lights[i].attenuation = glm::vec4(spotLightAttenuations[i], 0.0f);
     }
