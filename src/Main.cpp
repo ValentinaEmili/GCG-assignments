@@ -139,6 +139,7 @@ enum class ShadingMode {
     Multicolor,
     Gouraud,
     Phong,
+    PhongSpecular
 };
 
 // Subtask 2.6: Orbit Camera
@@ -265,6 +266,14 @@ std::vector<uint32_t> cornell_indices = {
    16, 17, 18, 16, 18, 19
 };
 
+// Subtask 6.7: Load DDS Textures into Images
+struct Texture {
+    VkBuffer buffer;
+    VkImage image;
+    VkImageView view;
+};
+Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandPool command_pool, VkQueue vk_queue);
+
 // Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
 struct MeshResources {
     UniformBufferObject ubo;
@@ -284,11 +293,12 @@ MeshResources SetupMesh(
     VkDescriptorPool descriptor_pool,
     VkDescriptorSetLayout descriptor_set_layout,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 4>& descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 5>& descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
-    VkImageView textureView,
     VkSampler textureSampler,
+    Texture diffuse_texture,
+    Texture specular_texture,
     ShadingMode shadingMode,
     VkDevice vk_device,
     glm::vec3 translation,
@@ -307,15 +317,17 @@ MeshResources createMesh(
     glm::mat4 projection,
     GLFWwindow* window,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 4>& descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 5>& descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
-    VkImageView textureView,
     VkSampler textureSampler,
+    Texture diffuse_texture,
+    Texture specular_texture,
     ShadingMode shadingMode,
     VkDevice vk_device);
 
 void destroyMeshResources(VkDevice vk_device, MeshResources& mesh);
+void destroyTexture(VkDevice vk_device, Texture& diffuse, Texture& specular);
 
 void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 
@@ -326,15 +338,6 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
 glm::vec3 bezierPoint(std::vector<glm::vec3>& vertices, float t);
 glm::vec3 derivativeBezierPoint(std::vector<glm::vec3>& vertices, float t);
 void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>& controlPoints, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
-
-// Subtask 6.7: Load DDS Textures into Images
-struct Texture {
-    VkBuffer buffer;
-    VkImage image;
-    VkImageView view;
-};
-
-Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandPool command_pool, VkQueue vk_queue);
 
 PFN_vkCmdPipelineBarrier2KHR g_vkCmdPipelineBarrier2KHR;
 /* --------------------------------------------- */
@@ -704,7 +707,10 @@ int main(int argc, char** argv) {
     vkCreateCommandPool(vk_device, &command_pool_info, nullptr, &texture_command_pool);
 
     Texture wood = loadTexture("../assets/textures/wood_texture.dds", vk_physical_device, vk_device, texture_command_pool, vk_queue);
-    Texture tiles = loadTexture("../assets/textures/tiles_diffuse.dds", vk_physical_device, vk_device, texture_command_pool, vk_queue);
+    Texture wood_specular = loadTexture("../assets/textures/wood_texture_specular.dds", vk_physical_device, vk_device, texture_command_pool, vk_queue);
+    Texture tiles_diffuse = loadTexture("../assets/textures/tiles_diffuse.dds", vk_physical_device, vk_device, texture_command_pool, vk_queue);
+    Texture tiles_specular = loadTexture("../assets/textures/tiles_specular.dds", vk_physical_device, vk_device, texture_command_pool, vk_queue);
+
 
     // Subtask 6.9: Create a Sampler
     VkSamplerCreateInfo sampler_info{};
@@ -718,11 +724,11 @@ int main(int argc, char** argv) {
     vkCreateSampler(vk_device, &sampler_info, nullptr, &vk_sampler);
 
     // Subtask 2.2: Create a Uniform Buffer
-    std::array<VkDescriptorSetLayoutBinding, 4> descriptor_set_layout_binding{};
-    for (uint32_t i = 0; i < 4; i++) {
+    std::array<VkDescriptorSetLayoutBinding, 5> descriptor_set_layout_binding{};
+    for (uint32_t i = 0; i < 5; i++) {
         descriptor_set_layout_binding[i].binding = i;
         descriptor_set_layout_binding[i].descriptorCount = 1;
-        if (i == 3) { // texture
+        if (i >= 3) { // texture
             descriptor_set_layout_binding[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             descriptor_set_layout_binding[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         } else {
@@ -808,7 +814,7 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_cube{};
     MeshResources cube = SetupMesh(cube_vertices, cube_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_cube, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, wood.view, vk_sampler, ShadingMode::Phong, vk_device,
+        dirLightBuffer, pointLightBuffer, vk_sampler, wood,  wood_specular, ShadingMode::PhongSpecular, vk_device,
         glm::vec3(-0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
         glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f), 45.0f);
 
@@ -816,7 +822,7 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_cornell{};
     MeshResources cornell_cube = SetupMesh(cornell_vertices, cornell_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_cornell, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, wood.view, vk_sampler, ShadingMode::Multicolor, vk_device,
+        dirLightBuffer, pointLightBuffer, vk_sampler, wood, wood_specular, ShadingMode::Multicolor, vk_device,
         glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.1f, 0.9f, 0.3f, 10.0f), 0.0f, true, false);
 
@@ -828,7 +834,7 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_cylinder{};
     MeshResources cylinder = SetupMesh(cylinder_vertices, cylinder_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_cylinder, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, wood.view, vk_sampler, ShadingMode::Phong, vk_device,
+        dirLightBuffer, pointLightBuffer,vk_sampler, wood, wood_specular, ShadingMode::PhongSpecular, vk_device,
         glm::vec3(0.6f, 0.3f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.75f, 0.25f, 0.01f, 1.0f), glm::vec4(0.1f, 0.9f, 0.3f, 5.0f));
 
@@ -840,7 +846,7 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_sphere{};
     MeshResources sphere = SetupMesh(sphere_vertices, sphere_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_sphere, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, tiles.view, vk_sampler, ShadingMode::Phong, vk_device,
+        dirLightBuffer, pointLightBuffer, vk_sampler, tiles_diffuse, tiles_specular, ShadingMode::PhongSpecular, vk_device,
         glm::vec3(0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f));
 
@@ -859,7 +865,7 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_bezier_cylinder{};
     MeshResources bezier_cylinder = SetupMesh(bezier_cylinder_vertices, bezier_cylinder_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_bezier_cylinder, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, tiles.view, vk_sampler, ShadingMode::Phong, vk_device,
+        dirLightBuffer, pointLightBuffer, vk_sampler, tiles_diffuse, tiles_specular, ShadingMode::PhongSpecular, vk_device,
         glm::vec3(-0.6f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.75f, 0.25f, 0.01f, 1.0f), glm::vec4(0.1f, 0.9f, 0.3f, 5.0f));
 
@@ -1008,13 +1014,10 @@ int main(int argc, char** argv) {
     vklDestroyHostCoherentBufferAndItsBackingMemory(dirLightBuffer);
     vklDestroyHostCoherentBufferAndItsBackingMemory(pointLightBuffer);
 
-    vklDestroyHostCoherentBufferAndItsBackingMemory(wood.buffer);
-    vklDestroyDeviceLocalImageAndItsBackingMemory(wood.image);
-    vklDestroyHostCoherentBufferAndItsBackingMemory(tiles.buffer);
-    vklDestroyDeviceLocalImageAndItsBackingMemory(tiles.image);
+    destroyTexture(vk_device, wood, wood_specular);
+    destroyTexture(vk_device, tiles_diffuse, tiles_specular);
+
     vklDestroyDeviceLocalImageAndItsBackingMemory(depth_image);
-    vkDestroyImageView(vk_device, wood.view, nullptr);
-    vkDestroyImageView(vk_device, tiles.view, nullptr);
     vkDestroySampler(vk_device, vk_sampler, nullptr);
 
     vkDestroyDescriptorSetLayout(vk_device, descriptor_set_layout, nullptr);
@@ -1189,11 +1192,12 @@ MeshResources SetupMesh(
     VkDescriptorPool descriptor_pool,
     VkDescriptorSetLayout descriptor_set_layout,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 4>& descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 5>& descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
-    VkImageView textureView,
     VkSampler textureSampler,
+    Texture diffuse_texture,
+    Texture specular_texture,
     ShadingMode shadingMode,
     VkDevice vk_device,
     glm::vec3 translation,
@@ -1215,7 +1219,7 @@ MeshResources SetupMesh(
     VKL_CHECK_VULKAN_ERROR(res);
 
     MeshResources mesh = createMesh(vertices, indices, view, projection, window, descriptor_set,
-        descriptor_set_layout_binding, dirLightBuffer, pointLightBuffer, textureView, textureSampler,
+        descriptor_set_layout_binding, dirLightBuffer, pointLightBuffer, textureSampler, diffuse_texture, specular_texture,
         shadingMode, vk_device);
 
     glm::mat4 model = glm::mat4(1.0f);
@@ -1246,11 +1250,12 @@ MeshResources createMesh(
     glm::mat4 projection,
     GLFWwindow* window,
     VkDescriptorSet &descriptor_set,
-    std::array<VkDescriptorSetLayoutBinding, 4>& descriptor_set_layout_binding,
+    std::array<VkDescriptorSetLayoutBinding, 5>& descriptor_set_layout_binding,
     VkBuffer dirLightBuffer,
     VkBuffer pointLightBuffer,
-    VkImageView textureView,
     VkSampler textureSampler,
+    Texture diffuse_texture,
+    Texture specular_texture,
     ShadingMode shadingMode,
     VkDevice vk_device) {
     if (descriptor_set == VK_NULL_HANDLE) {
@@ -1322,6 +1327,10 @@ MeshResources createMesh(
             vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/phong.vert");
             fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/phong.frag");
             break;
+        case ShadingMode::PhongSpecular:
+            vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/phong.vert");
+            fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/phong_specular.frag");
+            break;
         case ShadingMode::Multicolor:
             vertex_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.vert");
             fragment_shader_path = gcgLoadShaderFilePath("assets/shaders/cornell.frag");
@@ -1334,6 +1343,7 @@ MeshResources createMesh(
     pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[1]);
     pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[2]);
     pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[3]);
+    pipe_config.descriptorLayout.push_back(descriptor_set_layout_binding[4]);
 
     for (uint32_t wire = 0; wire < 2; wire++) {
         for (uint32_t cull = 0; cull < 2; cull++) {
@@ -1369,14 +1379,19 @@ MeshResources createMesh(
     descriptor_buffer_pointLight_info.buffer = pointLightBuffer;
     descriptor_buffer_pointLight_info.range = sizeof(PointLightUBO);
 
-    // texture
-    VkDescriptorImageInfo descriptor_image_info{};
-    descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    descriptor_image_info.imageView = textureView;
-    descriptor_image_info.sampler = textureSampler;
+    // diffuse texture
+    VkDescriptorImageInfo descriptor_diffuse_image_info{};
+    descriptor_diffuse_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    descriptor_diffuse_image_info.imageView = diffuse_texture.view;
+    descriptor_diffuse_image_info.sampler = textureSampler;
 
-    //std::array<VkWriteDescriptorSet, 3> write_descriptor_set{};
-    std::array<VkWriteDescriptorSet, 4> write_descriptor_set{};
+    // specular texture
+    VkDescriptorImageInfo descriptor_specular_image_info{};
+    descriptor_specular_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    descriptor_specular_image_info.imageView = specular_texture.view;
+    descriptor_specular_image_info.sampler = textureSampler;
+
+    std::array<VkWriteDescriptorSet, 5> write_descriptor_set{};
     // UBO
     write_descriptor_set[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write_descriptor_set[0].dstSet = descriptor_set;
@@ -1396,12 +1411,19 @@ MeshResources createMesh(
     write_descriptor_set[2].dstBinding = 2;
     write_descriptor_set[2].pBufferInfo = &descriptor_buffer_pointLight_info;
 
-    // texture
+    // diffuse texture
     write_descriptor_set[3] = write_descriptor_set[0];
     write_descriptor_set[3].dstBinding = 3;
     write_descriptor_set[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write_descriptor_set[3].pImageInfo = &descriptor_image_info;
+    write_descriptor_set[3].pImageInfo = &descriptor_diffuse_image_info;
     write_descriptor_set[3].pBufferInfo = nullptr;
+
+    // specular texture
+    write_descriptor_set[4] = write_descriptor_set[0];
+    write_descriptor_set[4].dstBinding = 4;
+    write_descriptor_set[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write_descriptor_set[4].pImageInfo = &descriptor_specular_image_info;
+    write_descriptor_set[4].pBufferInfo = nullptr;
 
     vkUpdateDescriptorSets(vk_device, static_cast<uint32_t>(write_descriptor_set.size()), write_descriptor_set.data(), 0, nullptr);
 
@@ -1420,14 +1442,24 @@ void destroyMeshResources(VkDevice vk_device, MeshResources& mesh) {
     vklDestroyHostCoherentBufferAndItsBackingMemory(mesh.uniformBuffer);
 }
 
-// Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
+void destroyTexture(VkDevice vk_device, Texture& diffuse, Texture& specular) {
+
+    vklDestroyHostCoherentBufferAndItsBackingMemory(diffuse.buffer);
+    vklDestroyDeviceLocalImageAndItsBackingMemory(diffuse.image);
+    vklDestroyHostCoherentBufferAndItsBackingMemory(specular.buffer);
+    vklDestroyDeviceLocalImageAndItsBackingMemory(specular.image);
+
+    vkDestroyImageView(vk_device, diffuse.view, nullptr);
+    vkDestroyImageView(vk_device, specular.view, nullptr);
+}
+
+// Subtask 4.2 - 5.4 - 6.13: Sphere Geometry with normal vectors and fixed uv coordinates
 void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
 
     // north pole
     vertices.push_back({{0.0f, r, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
-
     for (uint32_t i = 1; i < m; ++i) {
-        for (uint32_t j = 0; j < n; ++j) {
+        for (uint32_t j = 0; j < n+1; ++j) {
             float theta = glm::pi<float>() * float (i) / float(m);
             float phi = glm::two_pi<float>() * float(j) / float(n);
             float x = r * glm::sin(theta) * glm::cos(phi);
@@ -1440,29 +1472,38 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
             vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}, {u, v}});
         }
     }
+    uint32_t northPoleStart = static_cast<uint32_t>(vertices.size());
+    for (uint32_t j = 0; j < n; ++j) {
+        float u = float(j) / n;
+        vertices.push_back({{0.0f, r, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, 1.0f}});
+    }
 
     // south pole
     vertices.push_back({{0.0f, -r, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
+    uint32_t southPoleStart = static_cast<uint32_t>(vertices.size());
+    for (uint32_t j = 0; j < n; ++j) {
+        float u = float(j) / n;
+        vertices.push_back({{0.0f, -r, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, 0.0f}});
+    }
 
-    uint32_t topCenter = 0;
-    uint32_t RingStart = topCenter + 1;
+    uint32_t RingStart = 1;
     // indices: first ring
     for (uint32_t j = 0; j < n; ++j) {
         uint32_t curr = RingStart + j;
-        uint32_t next = RingStart + ((j + 1) % n);
-        indices.push_back(topCenter);
+        uint32_t next = RingStart + (j + 1);
+        indices.push_back(northPoleStart + j);
         indices.push_back(next);
         indices.push_back(curr);
     }
     // indices: mid quads
     for (uint32_t i = 0; i < m - 2; ++i) {
-        RingStart = i * n + 1;
-        uint32_t nextRingStart = RingStart + n;
+        RingStart = i * (n+1) + 1;
+        uint32_t nextRingStart = RingStart + (n+1);
         for (uint32_t j = 0; j < n; ++j) {
             uint32_t curr = RingStart + j;
-            uint32_t next = RingStart + ((j + 1) % n);
+            uint32_t next = RingStart + (j + 1);
             uint32_t curr_down = nextRingStart + j;
-            uint32_t next_down = nextRingStart + ((j + 1) % n);
+            uint32_t next_down = nextRingStart + (j + 1);
 
             indices.push_back(curr);
             indices.push_back(next);
@@ -1475,18 +1516,17 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
     }
 
     // indices: last ring
-    RingStart = n * (m - 2) + 1;
-    uint32_t bottomCenter = RingStart + n;
+    RingStart = (n+1) * (m - 2) + 1;
     for (uint32_t j = 0; j < n; ++j) {
         uint32_t curr = RingStart + j;
-        uint32_t next = RingStart + ((j + 1) % n);
-        indices.push_back(bottomCenter);
+        uint32_t next = RingStart + (j + 1);
+        indices.push_back(southPoleStart + j);
         indices.push_back(curr);
         indices.push_back(next);
     }
 }
 
-// Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
+// Subtask 4.1 - 5.3 - 6.13: Cylinder Geometry with normal vectors and fixed uv coordinates
 void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
     // top face
     uint32_t topCenter = static_cast<uint32_t>(vertices.size());
@@ -1531,7 +1571,7 @@ void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, 
     }
 
     // side faces
-    for (uint32_t i = 0; i < n; ++i) {
+    for (uint32_t i = 0; i < n+1; ++i) {
         float angle = float(i) / n * glm::two_pi<float>();
         float x = r * glm::cos(angle);
         float z = r * glm::sin(angle);
@@ -1541,10 +1581,10 @@ void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, 
         vertices.push_back({{x, -h * 0.5f, z}, normal, {0.0f, 0.0f, 0.0f}, {u,  0.0f}});
     }
 
-    uint32_t sideStart = vertices.size() - 2 * n;
+    uint32_t sideStart = vertices.size() - 2 * (n+1);
     for (uint32_t i = 0; i < n; ++i) {
         uint32_t curr = sideStart + 2 * i;
-        uint32_t next = sideStart + 2 * ((i + 1) % n);
+        uint32_t next = sideStart + 2 * (i + 1);
 
         indices.push_back(curr);
         indices.push_back(next);
@@ -1556,7 +1596,7 @@ void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, 
     }
 }
 
-// Subtask 4.3 - 5.5: Bézier Cylinder Geometry with normal vectors
+// Subtask 4.3 - 5.5 - 6.13: Bézier Cylinder Geometry with normal vectors and fixed uv coordinates
 
 // de Casteljau algorithm
 glm::vec3 bezierPoint(std::vector<glm::vec3>& vertices, float t) {
@@ -1626,13 +1666,12 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
 
     // side vertices
     for (uint32_t i = 0; i < n_circles; ++i) {
-        for (uint32_t j = 0; j < n; ++j) {
+        for (uint32_t j = 0; j < n+1; ++j) {
             float theta = glm::two_pi<float>() * float(j) / float(n);
             glm::vec3 local_dir = glm::cos(theta) * normals[i] + glm::sin(theta) * binormals[i];
             glm::vec3 position = centers[i] + r * local_dir;
             glm::vec3 normal = glm::normalize(local_dir);
             float u = float(j) / float(n);
-            u = std::fmod(u + 0.25f, 1.0f); // "+0.25" is the 90 degrees rotation
             float v = vCoords[i];
             vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}, {u, v}});
         }
@@ -1669,10 +1708,10 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
     // indices: side faces
     for (uint32_t i = 0; i < s; ++i) {
         for (uint32_t j = 0; j < n; ++j) {
-            uint32_t top_curr = i * n + j;
-            uint32_t top_next = i * n + ((j + 1) % n);
-            uint32_t bottom_curr = (i + 1) * n + j;
-            uint32_t bottom_next = (i + 1) * n + ((j + 1) % n);
+            uint32_t top_curr = i * (n+1) + j;
+            uint32_t top_next = i * (n+1) + (j + 1);
+            uint32_t bottom_curr = (i + 1) * (n+1) + j;
+            uint32_t bottom_next = (i + 1) * (n+1) + (j + 1);
 
             indices.push_back(top_curr);
             indices.push_back(bottom_next);

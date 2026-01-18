@@ -29,6 +29,7 @@ layout(set = 0, binding = 2) uniform PointLightUBO {
 } pointLightUBO;
 
 layout(set = 0, binding = 3) uniform sampler2D diffuse_texture;
+layout(set = 0, binding = 4) uniform sampler2D specular_texture;
 
 vec3 getCornellBoxReflectionColor(vec3 positionWS, vec3 directionWS) {
     vec3 P0 = positionWS;
@@ -94,7 +95,8 @@ void main() {
     vec3 specular = ks * (spec_dir * dirLightUBO.color.rgb + spec_point * pointLightUBO.color.rgb * attenuation);
 
     vec3 texture_color = texture(diffuse_texture, outTexCoords).rgb;
-    vec3 result_color = (ambient + diffuse) * texture_color + specular;
+    vec3 specular_texture_color = texture(specular_texture, outTexCoords).rgb;
+    vec3 result_color = (ambient + diffuse) * texture_color + specular * specular_texture_color;
 
     if (UBO.userInput[0] == 1) {
         vec3 scaledNormal = 0.5f * N + 0.5f;
