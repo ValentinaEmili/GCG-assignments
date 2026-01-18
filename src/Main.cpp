@@ -1424,7 +1424,11 @@ void destroyMeshResources(VkDevice vk_device, MeshResources& mesh) {
 void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
 
     // north pole
-    vertices.push_back({{0.0f, r, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
+    uint32_t topCenter = vertices.size();
+    for (uint32_t j = 0; j < n; ++j) {
+        float u = float(j) / n;
+        vertices.push_back({{0.0f, r, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, 0.0f}});
+    }
 
     for (uint32_t i = 1; i < m; ++i) {
         for (uint32_t j = 0; j < n; ++j) {
@@ -1442,21 +1446,25 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
     }
 
     // south pole
-    vertices.push_back({{0.0f, -r, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
+    //vertices.push_back({{0.0f, -r, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
+    uint32_t southPoleStart = vertices.size();
+    for (uint32_t j = 0; j < n; ++j) {
+        float u = float(j) / n;
+        vertices.push_back({{0.0f, -r, 0.0f},{0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, 1.0f} });
+    }
 
-    uint32_t topCenter = 0;
-    uint32_t RingStart = topCenter + 1;
+    uint32_t RingStart = topCenter + n;
     // indices: first ring
     for (uint32_t j = 0; j < n; ++j) {
         uint32_t curr = RingStart + j;
         uint32_t next = RingStart + ((j + 1) % n);
-        indices.push_back(topCenter);
+        indices.push_back(topCenter + j);
         indices.push_back(next);
         indices.push_back(curr);
     }
     // indices: mid quads
     for (uint32_t i = 0; i < m - 2; ++i) {
-        RingStart = i * n + 1;
+        RingStart = topCenter + n + (i * n);
         uint32_t nextRingStart = RingStart + n;
         for (uint32_t j = 0; j < n; ++j) {
             uint32_t curr = RingStart + j;
@@ -1475,12 +1483,12 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
     }
 
     // indices: last ring
-    RingStart = n * (m - 2) + 1;
+    RingStart = topCenter + n + n * (m - 2);
     uint32_t bottomCenter = RingStart + n;
     for (uint32_t j = 0; j < n; ++j) {
         uint32_t curr = RingStart + j;
         uint32_t next = RingStart + ((j + 1) % n);
-        indices.push_back(bottomCenter);
+        indices.push_back(bottomCenter + j);
         indices.push_back(curr);
         indices.push_back(next);
     }
@@ -1519,7 +1527,7 @@ void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, 
         float x = r * glm::cos(angle);
         float z = r * glm::sin(angle);
         float u = (x / (2.0f * r)) + 0.5f;
-        float v = (z / (2.0f * r)) + 0.5f;
+        float v = 1.0f - ((z / (2.0f * r)) + 0.5f);
         vertices.push_back({{x, -h * 0.5f, z}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, v}});
     }
     for (uint32_t i = 0; i < n; ++i) {
