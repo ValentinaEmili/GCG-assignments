@@ -1457,48 +1457,47 @@ void destroyTexture(VkDevice vk_device, Texture& diffuse, Texture& specular) {
 void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
 
     // north pole
-    vertices.push_back({{0.0f, r, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
+    uint32_t topCenter = vertices.size();
+    for (uint32_t j = 0; j < n + 1; ++j) {
+        float u = float(j) / float(n);
+        vertices.push_back({{0.0f, r, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, 0.0f}});
+    }
+
     for (uint32_t i = 1; i < m; ++i) {
-        for (uint32_t j = 0; j < n+1; ++j) {
+        for (uint32_t j = 0; j < n + 1; ++j) {
             float theta = glm::pi<float>() * float (i) / float(m);
             float phi = glm::two_pi<float>() * float(j) / float(n);
             float x = r * glm::sin(theta) * glm::cos(phi);
             float y = r * glm::cos(theta);
             float z = r * glm::sin(theta) * glm::sin(phi);
-            float u = float(j) / n;
-            float v = float(i) / m;
+            float u = float(j) / float(n);
+            float v = float(i) / float(m);
             glm::vec3 position(x, y, z);
             glm::vec3 normal = glm::normalize(position);
             vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}, {u, v}});
         }
     }
-    uint32_t northPoleStart = static_cast<uint32_t>(vertices.size());
-    for (uint32_t j = 0; j < n; ++j) {
-        float u = float(j) / n;
-        vertices.push_back({{0.0f, r, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, 1.0f}});
-    }
 
     // south pole
-    vertices.push_back({{0.0f, -r, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
-    uint32_t southPoleStart = static_cast<uint32_t>(vertices.size());
-    for (uint32_t j = 0; j < n; ++j) {
-        float u = float(j) / n;
-        vertices.push_back({{0.0f, -r, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, 0.0f}});
+    uint32_t southPoleStart = vertices.size();
+    for (uint32_t j = 0; j < n + 1; ++j) {
+        float u = float(j) / float(n);
+        vertices.push_back({{0.0f, -r, 0.0f},{0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, 1.0f} });
     }
 
-    uint32_t RingStart = 1;
+    uint32_t RingStart = topCenter + (n + 1);
     // indices: first ring
     for (uint32_t j = 0; j < n; ++j) {
         uint32_t curr = RingStart + j;
         uint32_t next = RingStart + (j + 1);
-        indices.push_back(northPoleStart + j);
+        indices.push_back(topCenter + j);
         indices.push_back(next);
         indices.push_back(curr);
     }
     // indices: mid quads
     for (uint32_t i = 0; i < m - 2; ++i) {
-        RingStart = i * (n+1) + 1;
-        uint32_t nextRingStart = RingStart + (n+1);
+        RingStart = topCenter + (n + 1) + (i * (n + 1));
+        uint32_t nextRingStart = RingStart + (n + 1);
         for (uint32_t j = 0; j < n; ++j) {
             uint32_t curr = RingStart + j;
             uint32_t next = RingStart + (j + 1);
@@ -1516,11 +1515,12 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
     }
 
     // indices: last ring
-    RingStart = (n+1) * (m - 2) + 1;
+    RingStart = topCenter + (n + 1) + (n + 1) * (m - 2);
+    uint32_t bottomCenter = RingStart + (n + 1);
     for (uint32_t j = 0; j < n; ++j) {
         uint32_t curr = RingStart + j;
         uint32_t next = RingStart + (j + 1);
-        indices.push_back(southPoleStart + j);
+        indices.push_back(bottomCenter + j);
         indices.push_back(curr);
         indices.push_back(next);
     }
@@ -1538,7 +1538,7 @@ void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, 
         float x = r * glm::cos(angle);
         float z = r * glm::sin(angle);
         float u = (x / (2.0f * r)) + 0.5f;
-        float v = (z / (2.0f * r)) + 0.5f;
+        float v = 1.0f - ((z / (2.0f * r)) + 0.5f);
         vertices.push_back({{x, h * 0.5f, z}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, v}});
     }
     for (uint32_t i = 0; i < n; ++i) {
