@@ -178,10 +178,10 @@ std::vector<Vertex> cube_vertices = {
     {{ cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
     {{-cube_width / 2,  cube_height / 2,  cube_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
     // back
-    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-    {{ cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
-    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+    {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+    {{ cube_width / 2, -cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
+    {{ cube_width / 2,  cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+    {{-cube_width / 2,  cube_height / 2, -cube_depth / 2}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
     // left
     {{-cube_width / 2, -cube_height / 2, -cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
     {{-cube_width / 2, -cube_height / 2,  cube_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
@@ -809,7 +809,7 @@ int main(int argc, char** argv) {
     MeshResources cube = SetupMesh(cube_vertices, cube_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_cube, descriptor_set_layout_binding,
         dirLightBuffer, pointLightBuffer, wood.view, vk_sampler, ShadingMode::Phong, vk_device,
-        glm::vec3(-0.6f, -0.89f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+        glm::vec3(-0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
         glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f), 45.0f);
 
     // Subtask 3.6 - 3.7 - 5.2: Cornell Box with normal vectors
