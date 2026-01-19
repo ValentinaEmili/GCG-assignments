@@ -820,11 +820,11 @@ int main(int argc, char** argv) {
 
     // Subtask 3.6 - 3.7 - 5.2: Cornell Box with normal vectors
     VkDescriptorSet descriptor_set_cornell{};
-    MeshResources cornell_cube = SetupMesh(cornell_vertices, cornell_indices, view, projection, window,
-        descriptor_pool, descriptor_set_layout, descriptor_set_cornell, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer, vk_sampler, wood, wood_specular, ShadingMode::Multicolor, vk_device,
-        glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.1f, 0.9f, 0.3f, 10.0f), 0.0f, true, false);
+    //MeshResources cornell_cube = SetupMesh(cornell_vertices, cornell_indices, view, projection, window,
+    //    descriptor_pool, descriptor_set_layout, descriptor_set_cornell, descriptor_set_layout_binding,
+    //    dirLightBuffer, pointLightBuffer, vk_sampler, wood, wood_specular, ShadingMode::Multicolor, vk_device,
+    //    glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+    //    glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.1f, 0.9f, 0.3f, 10.0f), 0.0f, true, false);
 
     // Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
     std::vector<Vertex> cylinder_vertices;
@@ -918,6 +918,7 @@ int main(int argc, char** argv) {
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
 
         // Subtask 3.6 - 3.7 - 5.2: Cornell Box
+        /*
         cornell_cube.ubo.view = view;
         cornell_cube.ubo.projection = projection;
         cornell_cube.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, draw_texcoords ? 1: 0, 0);
@@ -933,7 +934,7 @@ int main(int argc, char** argv) {
         vkCmdBindIndexBuffer(cmdBuffer, cornell_cube.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cornell_pipeline_layout, 0, 1, &descriptor_set_cornell, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cornell_indices.size()), 1, 0, 0, 0);
-
+        */
         // Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
         cylinder.ubo.view = view;
         cylinder.ubo.projection = projection;
@@ -1005,7 +1006,7 @@ int main(int argc, char** argv) {
     /* --------------------------------------------- */
     // Subtask 1.12: Cleanup
     /* --------------------------------------------- */
-    destroyMeshResources(vk_device, cornell_cube);
+    //destroyMeshResources(vk_device, cornell_cube);
     destroyMeshResources(vk_device, cylinder);
     destroyMeshResources(vk_device, sphere);
     destroyMeshResources(vk_device, cube);
@@ -1672,6 +1673,7 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
             glm::vec3 position = centers[i] + r * local_dir;
             glm::vec3 normal = glm::normalize(local_dir);
             float u = float(j) / float(n);
+            u = std::fmod(u + 0.25f, 1.0f);
             float v = vCoords[i];
             vertices.push_back({position, normal, {0.0f, 0.0f, 0.0f}, {u, v}});
         }
