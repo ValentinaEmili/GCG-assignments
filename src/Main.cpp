@@ -220,52 +220,6 @@ std::vector<uint32_t> cube_indices = {
     20, 22, 21, 20, 23, 22
 };
 
-// Subtask 3.6 - 3.7 - 5.2: Cornell Box with normal vectors
-float cornell_width = 3.0f;
-float cornell_height = 3.0f;
-float cornell_depth = 3.0f;
-
-std::vector<Vertex> cornell_vertices = {
-    // back                                                                                                                                                         // uv-coords not used
-    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}, {0.0f, 0.0f}},
-    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}, {0.0f, 0.0f}},
-    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}, {0.0f, 0.0f}},
-    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 0.0f, 0.0f, 1.0f}, {0.76, 0.74f, 0.68f}, {0.0f, 0.0f}},
-    // left
-    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}, {0.0f, 0.0f}},
-    {{-cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}, {0.0f, 0.0f}},
-    {{-cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}, {0.0f, 0.0f}},
-    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, { 1.0f, 0.0f, 0.0f}, {0.49f, 0.06f, 0.22f}, {0.0f, 0.0f}},
-    // right
-    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}, {0.0f, 0.0f}},
-    {{ cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}, {0.0f, 0.0f}},
-    {{ cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}, {0.0f, 0.0f}},
-    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.13f, 0.31f}, {0.0f, 0.0f}},
-    // bottom
-    {{-cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}, {0.0f, 0.0f}},
-    {{ cornell_width / 2, -cornell_height / 2, -cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}, {0.0f, 0.0f}},
-    {{ cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}, {0.0f, 0.0f}},
-    {{-cornell_width / 2, -cornell_height / 2,  cornell_depth / 2}, { 0.0f, 1.0f, 0.0f}, {0.64f, 0.64f, 0.64f}, {0.0f, 0.0f}},
-    // top
-    {{-cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}, {0.0f, 0.0f}},
-    {{ cornell_width / 2,  cornell_height / 2, -cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}, {0.0f, 0.0f}},
-    {{ cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}, {0.0f, 0.0f}},
-    {{-cornell_width / 2,  cornell_height / 2,  cornell_depth / 2}, {0.0f, -1.0f, 0.0f}, {0.96f, 0.93f, 0.85f}, {0.0f, 0.0f}}
-};
-
-std::vector<uint32_t> cornell_indices = {
-    // back
-    0, 1, 2, 0, 2, 3,
-    // left
-    4, 6, 5, 4, 7, 6,
-    // right
-    8, 9, 10, 8, 10, 11,
-    // bottom
-   13, 12, 15, 13, 15, 14,
-    // top
-   16, 17, 18, 16, 18, 19
-};
-
 // Subtask 6.7: Load DDS Textures into Images
 struct Texture {
     VkBuffer buffer;
@@ -818,14 +772,6 @@ int main(int argc, char** argv) {
         glm::vec3(-0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f),
         glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f), 45.0f);
 
-    // Subtask 3.6 - 3.7 - 5.2: Cornell Box with normal vectors
-    VkDescriptorSet descriptor_set_cornell{};
-    //MeshResources cornell_cube = SetupMesh(cornell_vertices, cornell_indices, view, projection, window,
-    //    descriptor_pool, descriptor_set_layout, descriptor_set_cornell, descriptor_set_layout_binding,
-    //    dirLightBuffer, pointLightBuffer, vk_sampler, wood, wood_specular, ShadingMode::Multicolor, vk_device,
-    //    glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
-    //    glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.1f, 0.9f, 0.3f, 10.0f), 0.0f, true, false);
-
     // Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
     std::vector<Vertex> cylinder_vertices;
     std::vector<uint32_t> cylinder_indices;
@@ -834,7 +780,7 @@ int main(int argc, char** argv) {
     VkDescriptorSet descriptor_set_cylinder{};
     MeshResources cylinder = SetupMesh(cylinder_vertices, cylinder_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_cylinder, descriptor_set_layout_binding,
-        dirLightBuffer, pointLightBuffer,vk_sampler, wood, wood_specular, ShadingMode::PhongSpecular, vk_device,
+        dirLightBuffer, pointLightBuffer,vk_sampler, tiles_diffuse, tiles_specular, ShadingMode::PhongSpecular, vk_device,
         glm::vec3(0.6f, 0.3f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.75f, 0.25f, 0.01f, 1.0f), glm::vec4(0.1f, 0.9f, 0.3f, 5.0f));
 
@@ -917,24 +863,6 @@ int main(int argc, char** argv) {
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cube_pipeline_layout, 0, 1, &descriptor_set_cube, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cube_indices.size()), 1, 0, 0, 0);
 
-        // Subtask 3.6 - 3.7 - 5.2: Cornell Box
-        /*
-        cornell_cube.ubo.view = view;
-        cornell_cube.ubo.projection = projection;
-        cornell_cube.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, draw_texcoords ? 1: 0, 0);
-        cornell_cube.ubo.userInput.z = 1;
-        cornell_cube.ubo.camera_pos = glm::vec4(camera_pos, 1.0f);
-        vklCopyDataIntoHostCoherentBuffer(cornell_cube.uniformBuffer, &cornell_cube.ubo, cornell_cube.uniformBufferSize);
-
-        VkPipeline cornell_pipeline = cornell_cube.pipelines[is_wireframe * 2 + cull_mode_idx];
-        VkPipelineLayout cornell_pipeline_layout = vklGetLayoutForPipeline(cornell_pipeline);
-        vklCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cornell_pipeline);
-
-        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &cornell_cube.vertexBuffer, offsets);
-        vkCmdBindIndexBuffer(cmdBuffer, cornell_cube.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cornell_pipeline_layout, 0, 1, &descriptor_set_cornell, 0, nullptr);
-        vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cornell_indices.size()), 1, 0, 0, 0);
-        */
         // Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
         cylinder.ubo.view = view;
         cylinder.ubo.projection = projection;
@@ -1006,7 +934,6 @@ int main(int argc, char** argv) {
     /* --------------------------------------------- */
     // Subtask 1.12: Cleanup
     /* --------------------------------------------- */
-    //destroyMeshResources(vk_device, cornell_cube);
     destroyMeshResources(vk_device, cylinder);
     destroyMeshResources(vk_device, sphere);
     destroyMeshResources(vk_device, cube);
@@ -1779,26 +1706,6 @@ Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDev
     vkBeginCommandBuffer(command_buffer, &begin_info);
 
     // record an image layout transition
-    /*VkImageMemoryBarrier image_memory_barrier{};
-    image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    image_memory_barrier.srcAccessMask = 0;
-    image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    image_memory_barrier.image = texture.image;
-    image_memory_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    image_memory_barrier.subresourceRange.baseArrayLayer = 0;
-    image_memory_barrier.subresourceRange.layerCount = 1;
-    image_memory_barrier.subresourceRange.baseMipLevel = 0;
-    image_memory_barrier.subresourceRange.levelCount = 1;
-    vkCmdPipelineBarrier(
-        command_buffer,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        0, 0,
-        nullptr, 0,
-        nullptr, 1,
-        &image_memory_barrier);*/
     VkImageMemoryBarrier2 image_memory_barrier{};
     image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
     image_memory_barrier.pNext = nullptr;
@@ -1847,19 +1754,6 @@ Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDev
         image_copy.imageExtent = {vkl_image_info.extent.width, vkl_image_info.extent.height, 1};
         vkCmdCopyBufferToImage(command_buffer, curr_buffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
     }
-    /*
-    VkBufferImageCopy image_copy{};
-    image_copy.bufferOffset = 0;
-    image_copy.bufferRowLength = 0;
-    image_copy.bufferImageHeight = 0;
-    image_copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    image_copy.imageSubresource.mipLevel = 0;
-    image_copy.imageSubresource.baseArrayLayer = 0;
-    image_copy.imageSubresource.layerCount = 1;
-    image_copy.imageOffset = {0, 0, 0};
-    image_copy.imageExtent = {info.extent.width, info.extent.height, 1};
-    vkCmdCopyBufferToImage(command_buffer, texture.buffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
-    */
     // it enables the shaders to access the image
     image_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     image_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -1869,13 +1763,6 @@ Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDev
     image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
     dependency_info.pImageMemoryBarriers = &image_memory_barrier;
     g_vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
-    /*vkCmdPipelineBarrier(command_buffer,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        0, 0,
-        nullptr, 0,
-        nullptr, 1,
-        &image_memory_barrier);*/
 
     vkEndCommandBuffer(command_buffer);
 
