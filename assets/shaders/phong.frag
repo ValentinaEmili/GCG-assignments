@@ -119,6 +119,6 @@ void main() {
         fragColor = vec4(color, 1.0f);
     }
     else {
-        fragColor = vec4(result_color, 1.0f);
+        fragColor = vec4(result_color + specular, 1.0f);
     }
 }
