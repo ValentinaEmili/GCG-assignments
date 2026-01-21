@@ -1466,7 +1466,7 @@ void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, 
         float x = r * glm::cos(angle);
         float z = r * glm::sin(angle);
         float u = (x / (2.0f * r)) + 0.5f;
-        float v = 1.0f - ((z / (2.0f * r)) + 0.5f);
+        float v = (z / (2.0f * r)) + 0.5f;
         vertices.push_back({{x, h * 0.5f, z}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, v}});
     }
     for (uint32_t i = 0; i < n; ++i) {
