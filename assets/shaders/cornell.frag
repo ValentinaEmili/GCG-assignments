@@ -30,14 +30,12 @@ layout(set = 0, binding = 2) uniform PointLightUBO {
 
 void main() {
     vec3 V = normalize(UBO.camera_pos.xyz - outPosition);
-    vec3 N = normalize(outNormal);
+    vec3 N = outNormal;
     float facing = dot(V, N);
     if (facing < 0.0f) {
         N = -N;
     }
-    else {
 
-    }
     // normals view
     if (UBO.userInput[0] == 1) {
         vec3 scaledNormal = 0.5f * N + 0.5f;

@@ -96,7 +96,7 @@ void main() {
 
     vec3 texture_color = texture(diffuse_texture, outTexCoords).rgb;
     vec3 specular_texture_color = texture(specular_texture, outTexCoords).rgb;
-    vec3 result_color = (ambient + diffuse) * texture_color + specular * specular_texture_color;
+    vec3 result_color = (ambient + diffuse) * texture_color;
 
     if (UBO.userInput[0] == 1) {
         vec3 scaledNormal = 0.5f * N + 0.5f;
@@ -113,10 +113,10 @@ void main() {
 
         vec3 outDirection = clampedReflect(-V, N);
         vec3 reflection_color = getCornellBoxReflectionColor(outPosition, outDirection);
-        vec3 color = mix(result_color, reflection_color, fresnel_coeff);
+        vec3 color = mix(result_color, reflection_color, fresnel_coeff) + specular * specular_texture_color;
         fragColor = vec4(color, 1.0f);
     }
     else {
-        fragColor = vec4(result_color, 1.0f);
+        fragColor = vec4(result_color + specular * specular_texture_color, 1.0f);
     }
 }
