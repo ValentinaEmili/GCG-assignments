@@ -28,6 +28,7 @@ layout(set = 0, binding = 2) uniform PointLightUBO {
     vec4 attenuation;
 } pointLightUBO;
 
+// Subtask 6.10: Use the Textures in Shaders
 layout(set = 0, binding = 3) uniform sampler2D diffuse_texture;
 
 vec3 getCornellBoxReflectionColor(vec3 positionWS, vec3 directionWS) {
@@ -93,18 +94,20 @@ void main() {
     vec3 diffuse = kd * (diff_dir * dirLightUBO.color.rgb + diff_point * pointLightUBO.color.rgb * attenuation);
     vec3 specular = ks * (spec_dir * dirLightUBO.color.rgb + spec_point * pointLightUBO.color.rgb * attenuation);
 
-    //vec3 result_color = (ambient + diffuse) * outColor * texture_color + specular;
     vec3 texture_color = texture(diffuse_texture, outTexCoords).rgb;
     vec3 result_color = (ambient + diffuse) * texture_color + specular;
 
+    // normals
     if (UBO.userInput[0] == 1) {
         vec3 scaledNormal = 0.5f * N + 0.5f;
         fragColor = vec4(pow(scaledNormal, vec3(2.2)), 1.0f);
         return;
     }
+    // texture coords
     else if (UBO.userInput[2] == 1) {
         fragColor = vec4(outTexCoords, 0.0f, 1.0f);
     }
+    // fresnel effect
     else if (UBO.userInput[1] == 1) {
         float F0 = 0.1f;
         float cos_theta = max(dot(N, V), 0.0f);

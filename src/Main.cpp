@@ -163,7 +163,7 @@ float cube_width = 0.34f;
 float cube_depth = 0.34f;
 float cube_height = 0.34f;
 
-// Subtask 5.1: Cube geometry with normal vectors
+// Subtask 5.1 - 6.1: Cube geometry with normal vectors and uv coordinates
 struct Vertex {
     glm::vec3 position;
     glm::vec3 normal;
@@ -319,10 +319,10 @@ void destroyMeshResources(VkDevice vk_device, MeshResources& mesh);
 
 void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 
-// Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
+// Subtask 4.2 - 5.4 - 6.3: Sphere Geometry with normal vectors and uv coordinates
 void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 
-// Subtask 4.3 - 5.5: Bézier Cylinder Geometry with normal vectors
+// Subtask 4.3 - 5.5 - 6.4: Bézier Cylinder Geometry with normal vectors and uv coordinates
 glm::vec3 bezierPoint(std::vector<glm::vec3>& vertices, float t);
 glm::vec3 derivativeBezierPoint(std::vector<glm::vec3>& vertices, float t);
 void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>& controlPoints, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
@@ -334,6 +334,7 @@ struct Texture {
     VkImageView view;
 };
 
+// Subtask 6.7: load DDS textures into Images
 Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandPool command_pool, VkQueue vk_queue);
 
 PFN_vkCmdPipelineBarrier2KHR g_vkCmdPipelineBarrier2KHR;
@@ -364,6 +365,7 @@ int main(int argc, char** argv) {
         init_renderer_filepath = cmdline_args.init_renderer_filepath;
     }
 
+    // interactions
     INIReader renderer_reader(init_renderer_filepath);
     is_wireframe = renderer_reader.GetBoolean("renderer", "wireframe", false);
     cull_mode_idx = renderer_reader.GetBoolean("renderer", "backface_culling", false) ? 1 : 0;
@@ -804,7 +806,7 @@ int main(int argc, char** argv) {
     glm::mat4 camera_to_world = rotation * translation;
     glm::mat4 view = glm::inverse(camera_to_world);
 
-    // Subtask 3.5 - 5.1: Cubemap with normals vectors
+    // Subtask 3.5 - 5.1 - 6.1: Cubemap with normals vectors and uv coordinates
     VkDescriptorSet descriptor_set_cube{};
     MeshResources cube = SetupMesh(cube_vertices, cube_indices, view, projection, window,
         descriptor_pool, descriptor_set_layout, descriptor_set_cube, descriptor_set_layout_binding,
@@ -820,7 +822,7 @@ int main(int argc, char** argv) {
         glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.0f, 0.0f, 0.0f, 0.0f), glm::vec4(0.1f, 0.9f, 0.3f, 10.0f), 0.0f, true, false);
 
-    // Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
+    // Subtask 4.1 - 5.3 - 6.2: Cylinder Geometry with normal vectors and uv coordinates
     std::vector<Vertex> cylinder_vertices;
     std::vector<uint32_t> cylinder_indices;
     buildCylinder(1.6f, 0.21f, 20, cylinder_vertices, cylinder_indices);
@@ -832,7 +834,7 @@ int main(int argc, char** argv) {
         glm::vec3(0.6f, 0.3f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.75f, 0.25f, 0.01f, 1.0f), glm::vec4(0.1f, 0.9f, 0.3f, 5.0f));
 
-    // Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
+    // Subtask 4.2 - 5.4 - 6.3: Sphere Geometry with normal vectors and uv coordinates
     std::vector<Vertex> sphere_vertices;
     std::vector<uint32_t> sphere_indices;
     buildSphere(36, 18, 0.26f, sphere_vertices, sphere_indices);
@@ -844,7 +846,7 @@ int main(int argc, char** argv) {
         glm::vec3(0.6f, -0.9f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f),
         glm::vec4(0.0f, 0.21f, 0.16f, 1.0f), glm::vec4(0.05f, 0.8f, 0.5f, 10.0f));
 
-    // Subtask 4.3 - 5.5: Bézier Cylinder Geometry with normal vectors
+    // Subtask 4.3 - 5.5 - 6.4: Bézier Cylinder Geometry with normal vectors and uv coordinates
     std::vector<Vertex> bezier_cylinder_vertices;
     std::vector<uint32_t> bezier_cylinder_indices;
     std::vector<glm::vec3> control_points = {
@@ -895,7 +897,7 @@ int main(int argc, char** argv) {
         VkCommandBuffer cmdBuffer = vklGetCurrentCommandBuffer();
         VkDeviceSize offsets[] = {0};
 
-        // Subtask 3.5 - 5.1: Cubemap with normal vectors
+        // Subtask 3.5 - 5.1 - 6.1: Cubemap with normal vectors and uv coordinates
         cube.ubo.view = view;
         cube.ubo.projection = projection;
         cube.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, draw_texcoords ? 1: 0, 0);
@@ -928,7 +930,7 @@ int main(int argc, char** argv) {
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cornell_pipeline_layout, 0, 1, &descriptor_set_cornell, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cornell_indices.size()), 1, 0, 0, 0);
 
-        // Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
+        // Subtask 4.1 - 5.3 - 6.2: Cylinder Geometry with normal vectors and uv coordinates
         cylinder.ubo.view = view;
         cylinder.ubo.projection = projection;
         cylinder.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, draw_texcoords ? 1: 0, 0);
@@ -944,7 +946,7 @@ int main(int argc, char** argv) {
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cylinder_pipeline_layout, 0, 1, &descriptor_set_cylinder, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(cylinder_indices.size()), 1, 0, 0, 0);
 
-        // Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
+        // Subtask 4.2 - 5.4 - 6.3: Sphere Geometry with normal vectors and uv coordinates
         sphere.ubo.view = view;
         sphere.ubo.projection = projection;
         sphere.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, draw_texcoords ? 1: 0, 0);
@@ -960,7 +962,7 @@ int main(int argc, char** argv) {
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, sphere_pipeline_layout, 0, 1, &descriptor_set_sphere, 0, nullptr);
         vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(sphere_indices.size()), 1, 0, 0, 0);
 
-        // Subtask 4.3 - 5.5: Bézier Cylinder with normal vectors
+        // Subtask 4.3 - 5.5 - 6.4: Bézier Cylinder with normal vectors and uv coordinates
         bezier_cylinder.ubo.view = view;
         bezier_cylinder.ubo.projection = projection;
         bezier_cylinder.ubo.userInput = glm::ivec4(draw_normals ? 1 : 0, draw_fresnel ? 1 : 0, draw_texcoords ? 1 : 0, 0);
@@ -1300,6 +1302,7 @@ MeshResources createMesh(
     color.offset = offsetof(Vertex, color);
     pipe_config.inputAttributeDescriptions.push_back(color);
 
+    // Subtask 6.5: pass uv coordinates as vertex attributes
     if (shadingMode != ShadingMode::Multicolor) {
         // attribute: texture
         VkVertexInputAttributeDescription texture = {};
@@ -1420,7 +1423,7 @@ void destroyMeshResources(VkDevice vk_device, MeshResources& mesh) {
     vklDestroyHostCoherentBufferAndItsBackingMemory(mesh.uniformBuffer);
 }
 
-// Subtask 4.2 - 5.4: Sphere Geometry with normal vectors
+// Subtask 4.2 - 5.4 - 6.3: Sphere Geometry with normal vectors and uv coordinates
 void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
 
     // north pole
@@ -1446,8 +1449,6 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
     }
 
     // south pole
-    //vertices.push_back({{0.0f, -r, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.5f, 0.5f}});
-    uint32_t southPoleStart = vertices.size();
     for (uint32_t j = 0; j < n; ++j) {
         float u = float(j) / n;
         vertices.push_back({{0.0f, -r, 0.0f},{0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {u, 1.0f} });
@@ -1494,7 +1495,7 @@ void buildSphere(uint32_t n, uint32_t m, float r, std::vector<Vertex>& vertices,
     }
 }
 
-// Subtask 4.1 - 5.3: Cylinder Geometry with normal vectors
+// Subtask 4.1 - 5.3 - 6.2: Cylinder Geometry with normal vectors and uv coordinates
 void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) {
     // top face
     uint32_t topCenter = static_cast<uint32_t>(vertices.size());
@@ -1564,7 +1565,7 @@ void buildCylinder(float h, float r, uint32_t n, std::vector<Vertex>& vertices, 
     }
 }
 
-// Subtask 4.3 - 5.5: Bézier Cylinder Geometry with normal vectors
+// Subtask 4.3 - 5.5 - 6.4: Bézier Cylinder Geometry with normal vectors and uv coordinates
 
 // de Casteljau algorithm
 glm::vec3 bezierPoint(std::vector<glm::vec3>& vertices, float t) {
@@ -1711,6 +1712,7 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
     }
 }
 
+// Subtask 6.7: load DDS textures into Images (with synchronization2 enabled)
 Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkCommandPool command_pool, VkQueue vk_queue) {
     Texture texture{};
     VklImageInfo info = vklGetDdsImageInfo(file);
@@ -1718,6 +1720,8 @@ Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDev
     texture.image = vklCreateDeviceLocalImageWithBackingMemory(vk_physical_device, vk_device, info.extent.width, info.extent.height, info.imageFormat, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1, 0);
 
     uint32_t mip_levels = static_cast<uint32_t>(std::log2(std::max(info.extent.width, info.extent.height)) + 1);
+
+    // Subtask 6.8: Create an Image View for each Image
     VkImageViewCreateInfo view_create_info{};
     view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     view_create_info.pNext = nullptr;
@@ -1747,26 +1751,6 @@ Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDev
     vkBeginCommandBuffer(command_buffer, &begin_info);
 
     // record an image layout transition
-    /*VkImageMemoryBarrier image_memory_barrier{};
-    image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    image_memory_barrier.srcAccessMask = 0;
-    image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    image_memory_barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    image_memory_barrier.image = texture.image;
-    image_memory_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    image_memory_barrier.subresourceRange.baseArrayLayer = 0;
-    image_memory_barrier.subresourceRange.layerCount = 1;
-    image_memory_barrier.subresourceRange.baseMipLevel = 0;
-    image_memory_barrier.subresourceRange.levelCount = 1;
-    vkCmdPipelineBarrier(
-        command_buffer,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        0, 0,
-        nullptr, 0,
-        nullptr, 1,
-        &image_memory_barrier);*/
     VkImageMemoryBarrier2 image_memory_barrier{};
     image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
     image_memory_barrier.pNext = nullptr;
@@ -1815,19 +1799,7 @@ Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDev
         image_copy.imageExtent = {vkl_image_info.extent.width, vkl_image_info.extent.height, 1};
         vkCmdCopyBufferToImage(command_buffer, curr_buffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
     }
-    /*
-    VkBufferImageCopy image_copy{};
-    image_copy.bufferOffset = 0;
-    image_copy.bufferRowLength = 0;
-    image_copy.bufferImageHeight = 0;
-    image_copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    image_copy.imageSubresource.mipLevel = 0;
-    image_copy.imageSubresource.baseArrayLayer = 0;
-    image_copy.imageSubresource.layerCount = 1;
-    image_copy.imageOffset = {0, 0, 0};
-    image_copy.imageExtent = {info.extent.width, info.extent.height, 1};
-    vkCmdCopyBufferToImage(command_buffer, texture.buffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
-    */
+
     // it enables the shaders to access the image
     image_memory_barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     image_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -1837,13 +1809,6 @@ Texture loadTexture(const char* file, VkPhysicalDevice vk_physical_device, VkDev
     image_memory_barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
     dependency_info.pImageMemoryBarriers = &image_memory_barrier;
     g_vkCmdPipelineBarrier2KHR(command_buffer, &dependency_info);
-    /*vkCmdPipelineBarrier(command_buffer,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        0, 0,
-        nullptr, 0,
-        nullptr, 1,
-        &image_memory_barrier);*/
 
     vkEndCommandBuffer(command_buffer);
 
