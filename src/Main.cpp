@@ -1596,7 +1596,7 @@ void buildBezierCylinder(uint32_t s, uint32_t n, float r, std::vector<glm::vec3>
     for (uint32_t i = 0; i < n_circles; ++i) {
         for (uint32_t j = 0; j < n+1; ++j) {
             float theta = glm::two_pi<float>() * float(j) / float(n);
-            glm::vec3 local_dir = glm::cos(theta) * binormals[i] + glm::sin(theta) * normals[i];
+            glm::vec3 local_dir = -glm::cos(theta) * binormals[i] + glm::sin(theta) * normals[i];
             glm::vec3 position = centers[i] + r * local_dir;
             glm::vec3 normal = glm::normalize(local_dir);
             float u = float(j) / float(n);
