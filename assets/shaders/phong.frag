@@ -75,7 +75,7 @@ void main() {
     vec3 ambient = ka * vec3(1.0f);
 
     vec3 V = normalize(UBO.camera_pos.xyz - outPosition);
-    vec3 N = normalize(outNormal);
+    vec3 N = outNormal;
 
     // directional light
     vec3 Ld = normalize(-dirLightUBO.direction.xyz);
@@ -95,7 +95,7 @@ void main() {
     vec3 specular = ks * (spec_dir * dirLightUBO.color.rgb + spec_point * pointLightUBO.color.rgb * attenuation);
 
     vec3 texture_color = texture(diffuse_texture, outTexCoords).rgb;
-    vec3 result_color = (ambient + diffuse) * texture_color + specular;
+    vec3 result_color = (ambient + diffuse) * texture_color;
 
     // normals
     if (UBO.userInput[0] == 1) {
@@ -115,7 +115,7 @@ void main() {
 
         vec3 outDirection = clampedReflect(-V, N);
         vec3 reflection_color = getCornellBoxReflectionColor(outPosition, outDirection);
-        vec3 color = mix(result_color, reflection_color, fresnel_coeff);
+        vec3 color = mix(result_color, reflection_color, fresnel_coeff) + specular;
         fragColor = vec4(color, 1.0f);
     }
     else {
